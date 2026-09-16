@@ -1,0 +1,88 @@
+name: BLU2USB Canonical CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - "gate/**"
+      - "planning/**"
+
+permissions:
+  contents: read
+
+jobs:
+  host-architecture:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure host build
+        run: >-
+          cmake -S . -B build-host
+          -DBLU2USB_BUILD_PICO=OFF
+          -DBLU2USB_BUILD_TESTS=ON
+          -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build host tests
+        run: cmake --build build-host --parallel
+
+      - name: Run host and architecture tests
+        run: ctest --test-dir build-host --output-on-failure
+
+  pico2-w-g01:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install pinned ARM toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          source ci/toolchain.env
+          sudo apt-get update
+          sudo apt-get install -y \
+            "gcc-arm-none-eabi=${ARM_GCC_PACKAGE_VERSION}" \
+            libnewlib-arm-none-eabi \
+            libstdc++-arm-none-eabi-newlib
+          test "$(dpkg-query -W -f='${Version}' gcc-arm-none-eabi)" = "${ARM_GCC_PACKAGE_VERSION}"
+          arm-none-eabi-gcc --version | head -n 1
+
+      - name: Fetch pinned Pico SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          source ci/toolchain.env
+          git clone --depth 1 --branch "${PICO_SDK_VERSION}" \
+            https://github.com/raspberrypi/pico-sdk.git "${RUNNER_TEMP}/pico-sdk"
+          git -C "${RUNNER_TEMP}/pico-sdk" submodule update --init --depth 1
+          test "$(git -C "${RUNNER_TEMP}/pico-sdk" describe --tags --exact-match)" = "${PICO_SDK_VERSION}"
+
+      - name: Configure Pico 2 W production scaffold
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PICO_SDK_PATH="${RUNNER_TEMP}/pico-sdk"
+          cmake -S . -B build-pico \
+            -DBLU2USB_BUILD_PICO=ON \
+            -DBLU2USB_BUILD_TESTS=OFF \
+            -DPICO_BOARD=pico2_w \
+            -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build Pico 2 W production scaffold
+        run: cmake --build build-pico --parallel
+
+      - name: Verify production UF2
+        run: |
+          test -s build-pico/blu2usb_picow.uf2
+          test ! -e build-pico/blu2usb_picow_debug.uf2
+          sha256sum build-pico/blu2usb_picow.uf2
+
+      - name: Upload G01 production UF2
+        uses: actions/upload-artifact@v4
+        with:
+          name: blu2usb-picow-g01-pico2w
+          path: build-pico/blu2usb_picow.uf2
+          if-no-files-found: error
