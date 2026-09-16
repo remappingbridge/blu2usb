@@ -14,7 +14,7 @@ if(BLU2USB_BUILD_PICO)
     include("${PICO_SDK_PATH}/external/pico_sdk_import.cmake")
 endif()
 
-project(blu2usb_picow VERSION 0.1.0 LANGUAGES C CXX ASM)
+project(blu2usb_picow VERSION 0.2.0 LANGUAGES C CXX ASM)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -38,8 +38,29 @@ add_library(blu2usb_contract STATIC
 )
 target_include_directories(blu2usb_contract PUBLIC include)
 target_compile_definitions(blu2usb_contract PUBLIC
-    BLU2USB_VERSION_STRING="0.1.0-g01"
+    BLU2USB_VERSION_STRING="0.2.0-g02"
 )
+
+add_library(blu2usb_profiles STATIC
+    src/profiles/custom_template.c
+)
+target_include_directories(blu2usb_profiles PUBLIC include)
+
+add_library(blu2usb_interaction STATIC
+    src/interaction/interaction.c
+)
+target_include_directories(blu2usb_interaction PUBLIC include)
+
+add_library(blu2usb_ux_model STATIC
+    src/ux_model/ux_model.c
+)
+target_include_directories(blu2usb_ux_model PUBLIC include)
+target_link_libraries(blu2usb_ux_model PUBLIC blu2usb_interaction)
+
+# Keep the frozen architectural facade targets while attaching G02 implementations.
+target_link_libraries(blu2usb_module_profiles INTERFACE blu2usb_profiles)
+target_link_libraries(blu2usb_module_interaction INTERFACE blu2usb_interaction)
+target_link_libraries(blu2usb_module_ux_model INTERFACE blu2usb_ux_model)
 
 if(BLU2USB_BUILD_TESTS)
     enable_testing()
@@ -48,6 +69,8 @@ if(BLU2USB_BUILD_TESTS)
     add_executable(blu2usb_test_bootstrap tests/test_bootstrap.c)
     target_link_libraries(blu2usb_test_bootstrap PRIVATE blu2usb_contract)
     add_test(NAME bootstrap_contract COMMAND blu2usb_test_bootstrap)
+
+    add_subdirectory(tests)
 
     add_test(
         NAME architecture_contract

@@ -5,6 +5,6 @@
 
 int main(void)
 {
-    assert(strcmp(blu2usb_version(), "0.1.0-g01") == 0);
+    assert(strcmp(blu2usb_version(), "0.2.0-g02") == 0);
     return 0;
 }

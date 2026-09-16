@@ -4,10 +4,10 @@
 - [x] G00 Contract Freeze: approve frozen product, UX, architecture and gate documentation
 - [x] G01 Create clean CMake/CI/test skeleton and enforce module boundaries
 - [x] G01 Confirm production firmware has no CDC/UART/debug artifact path
-- [ ] G02 Implement host interaction engine with action-on-release
-- [ ] G02 Implement option wrap, pagination wrap, Help and any-control unlock semantics
-- [ ] G02 Validate every literal 9x21 screen and Learn The Keys character positions
-- [ ] G02 Implement offline CustomTemplate editor model with ESCAPE target
+- [x] G02 Implement host interaction engine with action-on-release
+- [x] G02 Implement option wrap, pagination wrap, Help and any-control unlock semantics
+- [x] G02 Validate every literal 9x21 screen and Learn The Keys character positions
+- [x] G02 Implement offline CustomTemplate editor model with ESCAPE target
 - [ ] G03 Implement Waveshare Pico-LCD-1.3/ST7789 renderer and HAT adapter
 - [ ] G03 Physically validate colors, Learn The Keys, lock and any-control unlock
 - [ ] G04 Implement fixed USB Mouse + Keyboard identity from boot

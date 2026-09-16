@@ -576,10 +576,12 @@ KEY B: CANCEL
 
 ## LEARN THE KEYS
 
+The screen identity and HOME option remain `LEARN THE KEYS`; its displayed title is frozen as `PRESS TO LEAR A KEY`.
+
 This page is literal down to character placement. It uses the full dark-magenta background. Resting control labels are light gray and only the relevant words become white while their control is held.
 
 ```text
-LEARN THE KEYS
+PRESS TO LEAR A KEY
       JOY UP
 JOY    JOY    JOY
 LEFT  PRESS  RIGHT
