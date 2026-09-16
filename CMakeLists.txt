@@ -4,6 +4,10 @@ option(BLU2USB_BUILD_PICO "Build the Raspberry Pi Pico 2 W production scaffold" 
 option(BLU2USB_BUILD_TESTS "Build host tests" ON)
 
 if(BLU2USB_BUILD_PICO)
+    if((NOT DEFINED PICO_SDK_PATH OR PICO_SDK_PATH STREQUAL "") AND
+       DEFINED ENV{PICO_SDK_PATH} AND NOT "$ENV{PICO_SDK_PATH}" STREQUAL "")
+        set(PICO_SDK_PATH "$ENV{PICO_SDK_PATH}" CACHE PATH "Path to Raspberry Pi Pico SDK")
+    endif()
     if(NOT DEFINED PICO_SDK_PATH OR PICO_SDK_PATH STREQUAL "")
         message(FATAL_ERROR "PICO_SDK_PATH is required when BLU2USB_BUILD_PICO=ON")
     endif()
