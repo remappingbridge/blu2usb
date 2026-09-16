@@ -1,7 +1,7 @@
 # Continuous implementation checklist
 
 ```markdown
-- [ ] G00 Contract Freeze: approve frozen product, UX, architecture and gate documentation
+- [x] G00 Contract Freeze: approve frozen product, UX, architecture and gate documentation
 - [ ] G01 Create clean CMake/CI/test skeleton and enforce module boundaries
 - [ ] G01 Confirm production firmware has no CDC/UART/debug artifact path
 - [ ] G02 Implement host interaction engine with action-on-release
