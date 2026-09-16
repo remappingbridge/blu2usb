@@ -72,6 +72,7 @@ MOUSE HELP
 
 
 
+
 ANY KEY: BACK
 ```
 
@@ -131,6 +132,7 @@ Body is example/dynamic; explain BLE/HID succinctly in up to six lines.
 
 ```text
 PAIR MOUSE HELP
+
 
 
 
@@ -408,6 +410,7 @@ PAIR KEYBOARD HELP
 
 
 
+
 ANY KEY: BACK
 ```
 
@@ -449,6 +452,7 @@ Body is example/dynamic.
 
 ```text
 PAIR COMPOSITE HELP
+
 
 
 
@@ -563,6 +567,7 @@ REMOVE DEVICE
 BKB-3G
 PAIRING AND MAPPINGS
 WILL BE DELETED
+
 
 
 KEY A: REMOVE
