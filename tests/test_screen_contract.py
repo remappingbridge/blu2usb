@@ -18,7 +18,7 @@ assert learn[1].index('J') == 6
 assert [m.start() for m in re.finditer('JOY', learn[2])] == [0, 7, 14]
 assert learn[3].index('LEFT') == 0 and learn[3].index('PRESS') == 6 and learn[3].index('RIGHT') == 13
 assert learn[4].index('J') == 5
-assert all(learn[i].index('K') == 14 for i in (5,6,7))
+assert all(learn[i].index('KEY') == 14 for i in (5,6,7))
 assert learn[6].index('L') == 0
 assert learn[7].index('A') == 1
 assert learn[8].index('O') == 2
