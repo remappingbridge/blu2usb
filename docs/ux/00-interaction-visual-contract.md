@@ -40,7 +40,9 @@ Semantic colors are frozen:
 - selected option or pressed visible actionable text: white;
 - current/applied/success/connected active state: cyan.
 
-Option-list items have exactly one leading space. No `>` selector is used. Visual precedence is pressed, selected, current, actionable, static.
+Cyan is the general positive-state signal. Whenever an operation has been successfully applied, the body text that describes the resulting configuration is cyan. The currently active profile in `MOUSE OPTIONS` is cyan. Current/applied state has final visual precedence over ordinary selection highlighting, so an active profile remains cyan even if the cursor is resting on that same row. A pressed visible control hint may still flash white while physically held.
+
+Option-list items have exactly one leading space. No `>` selector is used.
 
 For `DEVICE DETAILS`, active-device name and dynamic values after `TYPE:`, `STATUS:` and `PROFILE:` are cyan. Inactive saved-device values are off-white yellow. `REMOVE DEVICE` remains an indented selectable action.
 
@@ -61,6 +63,29 @@ HOME is the first page, so hidden `KEY B: BACK` is a no-op there.
 There is no `GO TO HOME` action. No screen may expose or implement `JOY LEFT: GO TO HOME`. If one-screen Back happens to arrive at HOME, that is only because HOME is the previous logical page.
 
 Help is the exception in presentation only: `ANY KEY: BACK` consumes any HAT control and returns to its owning page; Key Y does not lock while Help owns interaction.
+
+Profile success pages are not an extra navigation level. `KEY B: BACK` from `PASSTHROUGH APPLIED`, `DEFAULT REMAP APPLIED`, `ESCAPE APPLIED`, or the applied Custom feedback returns directly to `MOUSE OPTIONS` on the first complete press/release interaction. It must never return to the corresponding `APPLY ...` page.
+
+## Profile application and feedback contract
+
+The profile engine is the source of truth. A profile is considered applied only after the profiles/remap runtime has accepted the complete configuration. The UI then reflects that confirmed active profile.
+
+For every Mouse profile:
+
+- before application, a non-current preset opens its `APPLY ...` page and displays the `KEY A: APPLY` hint;
+- successful Apply opens the feedback/success state and the configuration description is cyan;
+- returning to `MOUSE OPTIONS` shows exactly the active profile name in cyan;
+- opening the already-active preset goes directly to its feedback/success state without displaying an Apply hint;
+- switching profiles releases ownership from the old mapping before the new mapping becomes authoritative;
+- the text on each `APPLY ...` screen is normative: the runtime mapping must exactly match the relationships printed on that screen.
+
+The frozen preset mappings are therefore:
+
+- `PASSTHROUGH`: Left→Left, Right→Right, Middle→Middle, Forward→Forward, Backward→Backward;
+- `DEFAULT REMAP`: Forward→Left, Left→Forward, Backward→Right, Right→Backward, Middle→Middle;
+- `ESCAPE REMAP`: Forward→Left, Backward→Right, Left→Escape, Right→Backward, Middle→Forward.
+
+For `CUSTOM REMAP`, the complete draft becomes authoritative only after `KEY A: APPLY CUSTOM`. Once applied, the five mapping rows are cyan and the Apply hint is hidden until at least one target changes.
 
 ## Option lists and pagination
 
@@ -98,6 +123,22 @@ It is didactic. Other than Key Y lock, controls only demonstrate press/release f
 `EDIT CUSTOM REMAP` edits the Pico-global CustomTemplate without requiring a connected or saved Mouse. Target order is LEFT, RIGHT, MIDDLE, BACKWARD, FORWARD, ESCAPE.
 
 `KEY A: APPLY AND BACK` changes the draft mapping and returns to `EDIT CUSTOM REMAP`. `KEY A: APPLY CUSTOM` commits the complete draft. Hidden Key B performs one-screen Back without committing the current target page, and hidden Key Y locks.
+
+## Inherited accepted rules
+
+The following previously accepted gate corrections remain normative and must be treated as regressions if broken by later gates:
+
+- retained pixel relocation applies to all later screens even when wording changes;
+- on `PRESS TO LEARN A KEY`, `KEY A`, `KEY B`, and `KEY X` start at 1-based column 16;
+- `KEY B` always means one-screen Back outside HOME/LEARN, regardless of whether the visible label says Back, Cancel, or another context word;
+- there is no `GO TO HOME` action;
+- hidden controls remain functional where the screen contract declares them;
+- lock occurs on Key Y release; the unlock interaction is consumed and returns to HOME;
+- Pair help is `KEY X: HELP`; `KEY C: HELP` is invalid;
+- the Learn title is exactly `PRESS TO LEARN A KEY`;
+- fixed USB Mouse + Keyboard identity remains stable through Bluetooth connect/disconnect and profile changes;
+- Mouse forwarding continues while the LCD is locked;
+- BLE disconnect/overflow releases persistent HID ownership so no Mouse button or synthetic key can remain stuck.
 
 ## Dynamic/example body text
 
