@@ -34,6 +34,15 @@ target_link_libraries(blu2usb_test_g05_ble_mouse PRIVATE
 )
 add_test(NAME g05_ble_hogp_mouse_passthrough COMMAND blu2usb_test_g05_ble_mouse)
 
+add_executable(blu2usb_test_g06_profiles_remap_hidpp test_g06_profiles_remap_hidpp.c)
+target_link_libraries(blu2usb_test_g06_profiles_remap_hidpp PRIVATE
+    blu2usb_profiles
+    blu2usb_remap
+    blu2usb_hid_aggregator
+    blu2usb_logitech_hidpp
+)
+add_test(NAME g06_profiles_remap_hidpp COMMAND blu2usb_test_g06_profiles_remap_hidpp)
+
 add_test(
     NAME screen_contract
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_screen_contract.py
