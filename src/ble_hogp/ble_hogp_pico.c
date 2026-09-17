@@ -233,11 +233,7 @@ static void hci_packet_handler(uint8_t packet_type,
         memcpy(g_remote_address, candidate_address, sizeof(bd_addr_t));
         g_remote_address_type = candidate_type;
         g_state = BLE_HOGP_STATE_CONNECTING;
-        const uint8_t status = gap_connect(g_remote_address, g_remote_address_type);
-        if (status != ERROR_CODE_SUCCESS) {
-            g_connection_handle = HCI_CON_HANDLE_INVALID;
-            start_scan();
-        }
+        gap_connect(g_remote_address, g_remote_address_type);
         break;
     }
 
