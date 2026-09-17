@@ -1,5 +1,6 @@
 #include "blu2usb/hid_aggregator/hid_aggregator.h"
 
+#include <stddef.h>
 #include <stdint.h>
 
 static bool component_can_consume(int32_t pending, int32_t amount)
