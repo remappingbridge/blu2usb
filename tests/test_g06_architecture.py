@@ -51,7 +51,8 @@ for token in (
 ):
     assert token in remap, f'missing canonical remap behavior: {token}'
 
-hidpp = files['HID++ core'].read_text(encoding='utf-8')
+hidpp = (files['HID++ API'].read_text(encoding='utf-8') + '\n' +
+         files['HID++ core'].read_text(encoding='utf-8'))
 for token in ('0x1b04u', '0x0056u', 'BLU2USB_HIDPP_OUTPUT_SET_FORWARD_DIVERT'):
     assert token in hidpp, f'missing HID++ behavior: {token}'
 
