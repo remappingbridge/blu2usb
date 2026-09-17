@@ -2,7 +2,11 @@
 
 #include <string.h>
 
-#define PROFILE_SCHEMA_VERSION 1u
+#define PROFILE_SCHEMA_VERSION 2u
+#define PROFILE_ACTIVE_OFFSET 1u
+#define PROFILE_DRAFT_VALID_OFFSET 2u
+#define PROFILE_CUSTOM_OFFSET 3u
+#define PROFILE_DRAFT_OFFSET (PROFILE_CUSTOM_OFFSET + BLU2USB_MOUSE_SOURCE_COUNT)
 
 static bool source_valid(blu2usb_mouse_source_t source)
 {
@@ -99,9 +103,10 @@ void blu2usb_profiles_activate(blu2usb_profiles_t *profiles,
         for (unsigned i = 0u; i < BLU2USB_MOUSE_SOURCE_COUNT; ++i)
             if (!target_valid(config->targets[i])) return;
         memcpy(profiles->custom_targets, config->targets, sizeof(profiles->custom_targets));
+        memcpy(profiles->draft_targets, config->targets, sizeof(profiles->draft_targets));
+        profiles->draft_valid = false;
     }
     profiles->active_kind = config->kind;
-    profiles->draft_valid = false;
 }
 
 bool blu2usb_profiles_draft_set(blu2usb_profiles_t *profiles,
@@ -158,12 +163,21 @@ bool blu2usb_profiles_serialize(const blu2usb_profiles_t *profiles,
 {
     if (profiles == NULL || out == NULL ||
         profiles->active_kind > BLU2USB_MOUSE_PROFILE_CUSTOM_REMAP) return false;
+
+    memset(out, 0, BLU2USB_PROFILE_SERIALIZED_SIZE);
     out[0] = PROFILE_SCHEMA_VERSION;
-    out[1] = (uint8_t)profiles->active_kind;
+    out[PROFILE_ACTIVE_OFFSET] = (uint8_t)profiles->active_kind;
+    out[PROFILE_DRAFT_VALID_OFFSET] = profiles->draft_valid ? 1u : 0u;
+
     for (size_t i = 0u; i < BLU2USB_MOUSE_SOURCE_COUNT; ++i) {
-        if (!target_valid(profiles->custom_targets[i])) return false;
-        out[i + 2u] = (uint8_t)profiles->custom_targets[i];
+        const blu2usb_mouse_target_t custom = profiles->custom_targets[i];
+        const blu2usb_mouse_target_t draft =
+            profiles->draft_valid ? profiles->draft_targets[i] : custom;
+        if (!target_valid(custom) || !target_valid(draft)) return false;
+        out[PROFILE_CUSTOM_OFFSET + i] = (uint8_t)custom;
+        out[PROFILE_DRAFT_OFFSET + i] = (uint8_t)draft;
     }
+
     out[BLU2USB_PROFILE_SERIALIZED_SIZE - 1u] = checksum(out);
     return true;
 }
@@ -172,17 +186,26 @@ bool blu2usb_profiles_restore(blu2usb_profiles_t *profiles,
                               const uint8_t data[BLU2USB_PROFILE_SERIALIZED_SIZE])
 {
     if (profiles == NULL || data == NULL || data[0] != PROFILE_SCHEMA_VERSION ||
-        data[1] > BLU2USB_MOUSE_PROFILE_CUSTOM_REMAP ||
+        data[PROFILE_ACTIVE_OFFSET] > BLU2USB_MOUSE_PROFILE_CUSTOM_REMAP ||
+        data[PROFILE_DRAFT_VALID_OFFSET] > 1u ||
         data[BLU2USB_PROFILE_SERIALIZED_SIZE - 1u] != checksum(data)) return false;
+
     blu2usb_profiles_t candidate;
     blu2usb_profiles_init(&candidate);
-    candidate.active_kind = (blu2usb_mouse_profile_kind_t)data[1];
+    candidate.active_kind =
+        (blu2usb_mouse_profile_kind_t)data[PROFILE_ACTIVE_OFFSET];
+    candidate.draft_valid = data[PROFILE_DRAFT_VALID_OFFSET] != 0u;
+
     for (size_t i = 0u; i < BLU2USB_MOUSE_SOURCE_COUNT; ++i) {
-        const blu2usb_mouse_target_t target = (blu2usb_mouse_target_t)data[i + 2u];
-        if (!target_valid(target)) return false;
-        candidate.custom_targets[i] = target;
-        candidate.draft_targets[i] = target;
+        const blu2usb_mouse_target_t custom =
+            (blu2usb_mouse_target_t)data[PROFILE_CUSTOM_OFFSET + i];
+        const blu2usb_mouse_target_t draft =
+            (blu2usb_mouse_target_t)data[PROFILE_DRAFT_OFFSET + i];
+        if (!target_valid(custom) || !target_valid(draft)) return false;
+        candidate.custom_targets[i] = custom;
+        candidate.draft_targets[i] = candidate.draft_valid ? draft : custom;
     }
+
     *profiles = candidate;
     return true;
 }
