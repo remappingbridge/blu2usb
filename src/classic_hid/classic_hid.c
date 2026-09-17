@@ -65,7 +65,7 @@ bool blu2usb_classic_hid_emit_state_diff(
         if (!emit(context, &event)) return false;
     }
 
-    for (unsigned key = 1u; key < BLU2USB_HID_KEY_COUNT; ++key) {
+    for (unsigned key = 1u; key < BLU2USB_CLASSIC_HID_KEY_USAGE_COUNT; ++key) {
         const bool before = bit_get(previous->key_bitmap, key);
         const bool after = bit_get(next->key_bitmap, key);
         if (before == after) continue;
