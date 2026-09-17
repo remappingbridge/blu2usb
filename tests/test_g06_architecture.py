@@ -9,9 +9,12 @@ required_cmake = (
     'BLU2USB_VERSION_STRING="0.6.0-g06"',
     'src/profiles/profiles.c',
     'add_library(blu2usb_remap STATIC src/remap/remap.c)',
+    'add_library(blu2usb_storage STATIC src/storage/storage.c)',
+    'src/storage/storage_pico.c',
     'add_library(blu2usb_logitech_hidpp STATIC src/logitech_hidpp/logitech_hidpp.c)',
     'src/logitech_hidpp/logitech_hidpp_pico.c',
     'target_link_libraries(blu2usb_module_remap INTERFACE blu2usb_remap)',
+    'target_link_libraries(blu2usb_module_storage INTERFACE blu2usb_storage)',
     'target_link_libraries(blu2usb_module_logitech_hidpp INTERFACE blu2usb_logitech_hidpp)',
 )
 for token in required_cmake:
@@ -23,6 +26,9 @@ files = {
     'profiles core': root / 'src/profiles/profiles.c',
     'remap API': root / 'include/blu2usb/remap/remap.h',
     'remap core': root / 'src/remap/remap.c',
+    'storage API': root / 'include/blu2usb/storage/storage.h',
+    'storage core': root / 'src/storage/storage.c',
+    'storage Pico glue': root / 'src/storage/storage_pico.c',
     'HID++ API': root / 'include/blu2usb/logitech_hidpp/logitech_hidpp.h',
     'HID++ core': root / 'src/logitech_hidpp/logitech_hidpp.c',
     'HID++ Pico glue': root / 'src/logitech_hidpp/logitech_hidpp_pico.c',
@@ -40,6 +46,7 @@ for token in (
     'blu2usb_profiles_requires_forward_held_fix',
     'blu2usb_profiles_serialize',
     'blu2usb_profiles_restore',
+    'PROFILE_DRAFT_VALID_OFFSET',
 ):
     assert token in profile, f'missing profile behavior: {token}'
 
@@ -50,6 +57,21 @@ for token in (
     'BLU2USB_MOUSE_EVENT_BUTTON',
 ):
     assert token in remap, f'missing canonical remap behavior: {token}'
+
+storage = files['storage core'].read_text(encoding='utf-8')
+for token in ('BLU2USB_STORAGE_MAGIC', 'crc32', 'blu2usb_storage_select_newest'):
+    assert token in storage, f'missing persistence integrity behavior: {token}'
+
+storage_pico = files['storage Pico glue'].read_text(encoding='utf-8')
+for token in (
+    'BLU2USB_STORAGE_SLOT_COUNT 2u',
+    'flash_safe_execute',
+    'flash_range_erase',
+    'flash_range_program',
+    'BLU2USB_PRODUCT_STORAGE_OFFSET',
+):
+    assert token in storage_pico, f'missing Pico persistence behavior: {token}'
+assert 'btstack' not in storage_pico.lower(), 'product persistence must stay separate from BT credential storage'
 
 hidpp = (files['HID++ API'].read_text(encoding='utf-8') + '\n' +
          files['HID++ core'].read_text(encoding='utf-8'))
@@ -72,8 +94,14 @@ for token in (
     'g_vendor_backend.claims_button',
     'g_vendor_backend.input',
     'g_vendor_backend.session',
+    'le_device_db_count',
+    'gap_load_resolving_list_from_le_device_db',
+    'gap_whitelist_add',
+    'gap_connect_with_whitelist',
+    'BLE_HOGP_BONDED_RECONNECT_TIMEOUT_MS',
+    'reconnect_or_scan',
 ):
-    assert token in ble, f'BLE vendor composition missing: {token}'
+    assert token in ble, f'BLE vendor/reconnect composition missing: {token}'
 
 app = (root / 'src/app/main.c').read_text(encoding='utf-8')
 for token in (
@@ -83,9 +111,12 @@ for token in (
     'BLU2USB_UX_COMMAND_APPLY_DEFAULT',
     'BLU2USB_UX_COMMAND_APPLY_ESCAPE',
     'BLU2USB_UX_COMMAND_APPLY_CUSTOM',
+    'blu2usb_storage_load',
+    'blu2usb_storage_store',
+    'synchronize_ux_profiles',
 ):
     assert token in app, f'app G06 composition missing: {token}'
 for forbidden in ('tud_disconnect(', 'tud_connect(', 'btstack.h', 'hardware/gpio', 'hardware/spi'):
     assert forbidden not in app.lower(), f'app leaks raw transport/HAL: {forbidden}'
 
-print('BLU2USB-G06 profiles/remap/HID++ architecture: OK')
+print('BLU2USB-G06 profiles/remap/HID++ persistence/reconnect architecture: OK')
