@@ -20,6 +20,8 @@ for token in (
 classic_h = (root / 'include/blu2usb/classic_hid/classic_hid.h').read_text(encoding='utf-8')
 classic = (root / 'src/classic_hid/classic_hid.c').read_text(encoding='utf-8')
 classic_pico = (root / 'src/classic_hid/classic_hid_pico.c').read_text(encoding='utf-8')
+ble_h = (root / 'include/blu2usb/ble_hogp/ble_hogp.h').read_text(encoding='utf-8')
+ble_pico = (root / 'src/ble_hogp/ble_hogp_pico.c').read_text(encoding='utf-8')
 transport_h = (root / 'include/blu2usb/keyboard_transport/keyboard_transport.h').read_text(encoding='utf-8')
 transport = (root / 'src/keyboard_transport/keyboard_transport.c').read_text(encoding='utf-8')
 app = (root / 'src/app/main.c').read_text(encoding='utf-8')
@@ -52,9 +54,26 @@ for token in (
     'btstack_hid_parser_init',
     'descriptor_has_keyboard',
     'blu2usb_bt_runtime_register_session_setup',
+    'blu2usb_ble_hogp_pico_pause_discovery_for_classic',
+    'blu2usb_ble_hogp_pico_resume_discovery_after_classic',
+    'g_pairing_active && g_state == CLASSIC_HID_STATE_IDLE',
 ):
     assert token in classic_pico, f'missing Classic HID Pico behavior: {token}'
 assert 'HID_PROTOCOL_MODE_REPORT_WITH_FALLBACK_TO_BOOT' not in classic_pico
+
+for token in (
+    'blu2usb_ble_hogp_pico_pause_discovery_for_classic',
+    'blu2usb_ble_hogp_pico_resume_discovery_after_classic',
+):
+    assert token in ble_h, f'missing shared-radio BLE facade: {token}'
+for token in (
+    'BLE_HOGP_STATE_PAUSED_DISCOVERY',
+    'g_discovery_suppressed',
+    'gap_stop_scan()',
+    'gap_connect_cancel()',
+    'enter_paused_discovery',
+):
+    assert token in ble_pico, f'missing BLE discovery arbitration behavior: {token}'
 
 for token in (
     '#define MAX_NR_HCI_CONNECTIONS 2',
@@ -64,6 +83,10 @@ for token in (
     '#define MAX_NR_L2CAP_SERVICES 3',
 ):
     assert token in btstack_config, f'BTstack not sized for BLE Mouse + Classic Keyboard: {token}'
+
+# Classic depends on the BLE adapter only in the Pico composition layer so it
+# can arbitrate shared CYW43 discovery without leaking raw GAP calls into app.
+assert 'blu2usb_ble_hogp' in cmake.split('target_sources(blu2usb_classic_hid PRIVATE src/classic_hid/classic_hid_pico.c)', 1)[1]
 
 for forbidden in ('tud_disconnect(', 'tud_connect(', 'printf(', 'uart_', 'stdio_uart'):
     assert forbidden not in classic_pico.lower(), f'Classic adapter violates production policy: {forbidden}'
