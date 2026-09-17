@@ -41,7 +41,17 @@ identifique o candidato pelo SHA/hashes do artifact, não por esse campo.
   `pico_flash` gera uma variante sem lockout. A seleção do linker não deve
   decidir essa política. Storage usa os headers; a imagem final compartilha
   a implementação multicore. CI verifica objeto único e o define. Isso corrige
-  um risco demonstrável de composição, não prova a causa do pairing físico.
+  um defeito demonstrado de composição, não prova a causa do pairing físico.
+  O artifact de evidência do candidato intermediário `cc7791d`, run
+  `35238196601`, contém **sete** compilações de `pico_flash/flash.c`; seis sem
+  `LIB_PICO_MULTICORE`. O map mostra `flash_safe_execute_core_init` selecionado
+  do objeto do executável final (sem lockout), não do runtime multicore.
+  Retirar apenas a dependência explícita de storage foi insuficiente: o SDK
+  também traz esse source transitivamente pelo stdlib. A correção final retira
+  o source de `pico_flash` INTERFACE e o materializa explicitamente uma vez no
+  runtime, mantendo headers/dependências do SDK. O guard de CMake exige o único
+  source esperado do SDK fixado; a verificação de build exige um único objeto
+  com `LIB_PICO_MULTICORE=1`.
 - CI: asserções ligadas também em Release. G06 tinha `assert()` desativado e
   expectativas obsoletas no teste G02 ("LEAR" e coluna 15 em vez de 16).
   Ajustados somente os testes ao contrato G03 já aceito; produto não mudou.

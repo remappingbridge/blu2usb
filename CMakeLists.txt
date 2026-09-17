@@ -110,7 +110,17 @@ if(BLU2USB_BUILD_PICO)
     # and could win archive selection, silently disabling cross-core lockout.
     target_link_libraries(blu2usb_storage PRIVATE pico_stdlib pico_flash_headers hardware_flash)
 
-    target_sources(blu2usb_bt_runtime PRIVATE src/bt_runtime/bt_runtime_pico.c)
+    # SDK 2.2.0 attaches pico_flash/flash.c transitively even through stdlib.
+    # Materialize it only here, with pico_multicore enabled, so the final
+    # executable cannot select its own IRQ-only variant ahead of this archive.
+    get_target_property(blu2usb_sdk_flash_sources pico_flash INTERFACE_SOURCES)
+    list(LENGTH blu2usb_sdk_flash_sources blu2usb_sdk_flash_source_count)
+    if(NOT blu2usb_sdk_flash_source_count EQUAL 1)
+        message(FATAL_ERROR "Revalidate pico_flash source composition for this SDK")
+    endif()
+    set_property(TARGET pico_flash PROPERTY INTERFACE_SOURCES "")
+    target_sources(blu2usb_bt_runtime PRIVATE
+        src/bt_runtime/bt_runtime_pico.c ${blu2usb_sdk_flash_sources})
     target_link_libraries(blu2usb_bt_runtime PRIVATE
         pico_stdlib
         pico_multicore
