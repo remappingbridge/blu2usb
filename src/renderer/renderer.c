@@ -113,10 +113,34 @@ static int selected_row(const blu2usb_ux_model_t *ux)
     }
 }
 
-static void emphasize_row(blu2usb_ui_frame_t *frame, uint8_t row)
+static void set_row_tone(blu2usb_ui_frame_t *frame, uint8_t row, blu2usb_ui_tone_t tone)
 {
     for (uint8_t column = 0; column < BLU2USB_RENDERER_TEXT_COLS; ++column) {
-        if (frame->cells[row][column].character != ' ') frame->cells[row][column].tone = BLU2USB_UI_TONE_EMPHASIZED;
+        if (frame->cells[row][column].character != ' ') frame->cells[row][column].tone = tone;
+    }
+}
+
+static void emphasize_row(blu2usb_ui_frame_t *frame, uint8_t row)
+{
+    set_row_tone(frame, row, BLU2USB_UI_TONE_EMPHASIZED);
+}
+
+static bool is_success_feedback(blu2usb_screen_id_t screen)
+{
+    return screen == BLU2USB_SCREEN_PASSTHROUGH_APPLIED ||
+           screen == BLU2USB_SCREEN_DEFAULT_APPLIED ||
+           screen == BLU2USB_SCREEN_ESCAPE_APPLIED;
+}
+
+static uint8_t active_profile_row(const blu2usb_ux_model_t *ux)
+{
+    if (ux->screen != BLU2USB_SCREEN_MOUSE_OPTIONS) return 0u;
+    switch (ux->active_profile) {
+    case BLU2USB_MOUSE_PROFILE_PASSTHROUGH: return 2u;
+    case BLU2USB_MOUSE_PROFILE_DEFAULT_REMAP: return 3u;
+    case BLU2USB_MOUSE_PROFILE_ESCAPE_REMAP: return 4u;
+    case BLU2USB_MOUSE_PROFILE_CUSTOM_REMAP: return 5u;
+    default: return 0u;
     }
 }
 
@@ -174,13 +198,19 @@ void blu2usb_ui_project(const blu2usb_ux_model_t *ux, blu2usb_ui_frame_t *frame)
     const blu2usb_screen_template_t *screen = blu2usb_ux_screen_template(ux->screen);
     if (screen == NULL) return;
     const bool learn = ux->screen == BLU2USB_SCREEN_LEARN_KEYS;
+    const bool success_feedback = is_success_feedback(ux->screen);
+    const bool custom_feedback = ux->screen == BLU2USB_SCREEN_EDIT_CUSTOM &&
+        ux->active_profile == BLU2USB_MOUSE_PROFILE_CUSTOM_REMAP && !ux->custom_dirty;
     const uint8_t hint = learn ? BLU2USB_RENDERER_TEXT_ROWS : first_hint_row(screen);
     blu2usb_ui_frame_reset(frame, learn, hint);
 
     for (uint8_t row = 0; row < BLU2USB_RENDERER_TEXT_ROWS; ++row) {
         const char *text = screen->rows[row] != NULL ? screen->rows[row] : "";
+        if (custom_feedback && row == 8u) text = "";
         blu2usb_ui_tone_t tone;
         if (row == 0) tone = BLU2USB_UI_TONE_TITLE;
+        else if (success_feedback && row < hint && text[0] != '\0') tone = BLU2USB_UI_TONE_CURRENT;
+        else if (custom_feedback && row >= 1u && row <= 5u) tone = BLU2USB_UI_TONE_CURRENT;
         else if (learn || row >= hint || text[0] == ' ') tone = BLU2USB_UI_TONE_ACTIONABLE;
         else tone = BLU2USB_UI_TONE_STATIC;
         (void)blu2usb_ui_frame_set_text(frame,row,0,text,tone);
@@ -191,10 +221,12 @@ void blu2usb_ui_project(const blu2usb_ux_model_t *ux, blu2usb_ui_frame_t *frame)
         return;
     }
 
+    const uint8_t profile_row = active_profile_row(ux);
+    if (profile_row != 0u) set_row_tone(frame, profile_row, BLU2USB_UI_TONE_CURRENT);
+
     if (ux->screen >= BLU2USB_SCREEN_LEFT_WILL_BECOME && ux->screen <= BLU2USB_SCREEN_BACKWARD_WILL_BECOME) {
         const uint8_t current_row = (uint8_t)(1u + (unsigned)ux->custom_targets[ux->custom_source]);
-        for (uint8_t c = 0; c < BLU2USB_RENDERER_TEXT_COLS; ++c)
-            if (frame->cells[current_row][c].character != ' ') frame->cells[current_row][c].tone = BLU2USB_UI_TONE_CURRENT;
+        set_row_tone(frame, current_row, BLU2USB_UI_TONE_CURRENT);
     }
 
     const int selected = selected_row(ux);
