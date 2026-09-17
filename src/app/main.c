@@ -4,6 +4,7 @@
 #include "blu2usb/hat/hat.h"
 #include "blu2usb/renderer/renderer.h"
 #include "blu2usb/renderer/st7789_pico.h"
+#include "blu2usb/usb_hid/usb_hid.h"
 #include "blu2usb/ux_model/ux_model.h"
 
 static bool render_state(const blu2usb_display_hal_t *display, const blu2usb_ux_model_t *ux)
@@ -22,15 +23,23 @@ int main(void)
     blu2usb_ux_init(&ux);
     ux.screen = BLU2USB_SCREEN_LEARN_KEYS;
 
+    if (!blu2usb_usb_hid_pico_init()) {
+        for (;;) tight_loop_contents();
+    }
+
     blu2usb_hat_pico_init();
     if (!blu2usb_st7789_pico_init(&display)) {
-        for (;;) tight_loop_contents();
+        for (;;) {
+            blu2usb_usb_hid_pico_task();
+            tight_loop_contents();
+        }
     }
 
     (void)render_state(&display,&ux);
     blu2usb_st7789_pico_set_backlight(true);
 
     for (;;) {
+        blu2usb_usb_hid_pico_task();
         blu2usb_hat_pico_task();
         blu2usb_hat_event_t event;
         while (blu2usb_hat_pico_poll_event(&event)) {
