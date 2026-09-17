@@ -226,9 +226,18 @@ def check_g05_ble_hogp_contract() -> None:
         for path in source_files()
         if path.exists()
     )
-    for prohibited in ("pico_multicore", "multicore_launch_core1", "tud_disconnect(", "tud_connect("):
-        if prohibited in combined:
-            fail(f"G05 runtime contains prohibited coupling/re-enumeration token: {prohibited}")
+
+    # G05 originally froze a single-core BLE runtime. G07 is allowed to move
+    # the *shared* BLE+Classic runtime to a dedicated Core1 because Classic HID
+    # physical validation requires the execution envelope proven by the earlier
+    # BKB-3G implementations. The G07-specific architecture test freezes that
+    # exception. USB re-enumeration remains prohibited for every gate.
+    prohibited = ["tud_disconnect(", "tud_connect("]
+    if 'BLU2USB_VERSION_STRING="0.7.0-g07"' not in cmake:
+        prohibited.extend(["pico_multicore", "multicore_launch_core1"])
+    for token in prohibited:
+        if token in combined:
+            fail(f"G05 runtime contains prohibited coupling/re-enumeration token: {token}")
 
     for path in (
         ROOT / "include" / "blu2usb" / "bt_runtime" / "bt_runtime.h",
