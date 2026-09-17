@@ -35,6 +35,13 @@ identifique o candidato pelo SHA/hashes do artifact, não por esse campo.
   sair da região Pair/Help cancela tentativa, mas não desconecta READY.
 - `tests`: adapter de produção com eventos determinísticos e bootstrap real
   com seams de plataforma; compile commands/ELF auditados no CI.
+- Flash SDK: `pico_flash/flash.c` também precisa ser materializado uma única vez,
+  no runtime que liga `pico_multicore`. O SDK condiciona lockout a
+  `LIB_PICO_MULTICORE`; compilar outra cópia no archive storage apenas com
+  `pico_flash` gera uma variante sem lockout. A seleção do linker não deve
+  decidir essa política. Storage usa os headers; a imagem final compartilha
+  a implementação multicore. CI verifica objeto único e o define. Isso corrige
+  um risco demonstrável de composição, não prova a causa do pairing físico.
 - CI: asserções ligadas também em Release. G06 tinha `assert()` desativado e
   expectativas obsoletas no teste G02 ("LEAR" e coluna 15 em vez de 16).
   Ajustados somente os testes ao contrato G03 já aceito; produto não mudou.

@@ -18,13 +18,17 @@ for name in ('bt_runtime_pico.c', 'ble_hogp_pico.c', 'classic_probe_pico.c'):
     entries = [c for c in commands if pathlib.Path(c['file']).name == name]
     assert len(entries) == 1, name
     assert all(flag in entries[0]['command'] for flag in ('-DENABLE_BLE=1','-DENABLE_CLASSIC=1')), name
+flash_entries = [c for c in commands if c['file'].endswith('/pico_flash/flash.c')]
+assert len(flash_entries) == 1, ('flash.c variants', len(flash_entries))
+assert '-DLIB_PICO_MULTICORE=1' in flash_entries[0]['command']
 cache = (build / 'CMakeCache.txt').read_text()
 assert 'PICO_BOARD:STRING=pico2_w' in cache
 elf = build / 'blu2usb_picow.elf'
 nm = subprocess.check_output(['arm-none-eabi-nm', '--defined-only', str(elf)], text=True)
 symbols = collections.Counter(line.split()[-1] for line in nm.splitlines() if line.split())
 for name in ('hci_init','l2cap_init','btstack_cyw43_init','hid_host_init',
-             'blu2usb_classic_probe_setup','blu2usb_ble_hogp_session_setup'):
+             'blu2usb_classic_probe_setup','blu2usb_ble_hogp_session_setup',
+             'flash_safe_execute','multicore_lockout_victim_init'):
     assert symbols[name] == 1, (name, symbols[name])
 uf2 = build / 'blu2usb_picow.uf2'
 data = uf2.read_bytes()

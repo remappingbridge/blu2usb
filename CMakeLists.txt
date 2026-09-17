@@ -105,7 +105,10 @@ if(BLU2USB_BUILD_PICO)
     target_link_libraries(blu2usb_usb_hid PUBLIC tinyusb_device)
 
     target_sources(blu2usb_storage PRIVATE src/storage/storage_pico.c)
-    target_link_libraries(blu2usb_storage PRIVATE pico_stdlib pico_flash hardware_flash)
+    # Flash implementation is materialized once with the shared multicore runtime.
+    # A second storage-owned flash.c would compile without LIB_PICO_MULTICORE
+    # and could win archive selection, silently disabling cross-core lockout.
+    target_link_libraries(blu2usb_storage PRIVATE pico_stdlib pico_flash_headers hardware_flash)
 
     target_sources(blu2usb_bt_runtime PRIVATE src/bt_runtime/bt_runtime_pico.c)
     target_link_libraries(blu2usb_bt_runtime PRIVATE
