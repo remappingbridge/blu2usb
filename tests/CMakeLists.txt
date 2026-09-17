@@ -44,6 +44,12 @@ target_link_libraries(blu2usb_test_g06_profiles_remap_hidpp PRIVATE
 add_test(NAME g06_profiles_remap_hidpp COMMAND blu2usb_test_g06_profiles_remap_hidpp)
 
 add_test(
+    NAME g06_architecture
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_g06_architecture.py
+            ${PROJECT_SOURCE_DIR}
+)
+
+add_test(
     NAME screen_contract
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_screen_contract.py
             ${PROJECT_SOURCE_DIR}
