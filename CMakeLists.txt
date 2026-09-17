@@ -14,7 +14,7 @@ if(BLU2USB_BUILD_PICO)
     include("${PICO_SDK_PATH}/external/pico_sdk_import.cmake")
 endif()
 
-project(blu2usb_picow VERSION 0.4.0 LANGUAGES C CXX ASM)
+project(blu2usb_picow VERSION 0.5.0 LANGUAGES C CXX ASM)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -35,7 +35,13 @@ blu2usb_declare_contract_modules()
 
 add_library(blu2usb_contract STATIC src/domain/version.c)
 target_include_directories(blu2usb_contract PUBLIC include)
-target_compile_definitions(blu2usb_contract PUBLIC BLU2USB_VERSION_STRING="0.4.0-g04")
+target_compile_definitions(blu2usb_contract PUBLIC BLU2USB_VERSION_STRING="0.5.0-g05")
+
+add_library(blu2usb_hid_aggregator STATIC
+    src/hid_aggregator/hid_aggregator.c
+    src/hid_aggregator/relative.c
+)
+target_include_directories(blu2usb_hid_aggregator PUBLIC include)
 
 add_library(blu2usb_profiles STATIC src/profiles/custom_template.c)
 target_include_directories(blu2usb_profiles PUBLIC include)
@@ -57,9 +63,16 @@ target_include_directories(blu2usb_hat PUBLIC include)
 add_library(blu2usb_usb_hid STATIC src/usb_hid/usb_hid.c)
 target_include_directories(blu2usb_usb_hid PUBLIC include)
 
+add_library(blu2usb_bt_runtime STATIC src/bt_runtime/bt_runtime.c)
+target_include_directories(blu2usb_bt_runtime PUBLIC include)
+
+add_library(blu2usb_ble_hogp STATIC src/ble_hogp/ble_hogp.c)
+target_include_directories(blu2usb_ble_hogp PUBLIC include)
+
 if(BLU2USB_BUILD_PICO)
     target_sources(blu2usb_renderer PRIVATE src/renderer/st7789_pico.c)
     target_link_libraries(blu2usb_renderer PUBLIC pico_stdlib hardware_gpio hardware_spi)
+
     target_sources(blu2usb_hat PRIVATE src/hat/hat_pico.c)
     target_link_libraries(blu2usb_hat PUBLIC pico_stdlib hardware_gpio)
 
@@ -68,15 +81,38 @@ if(BLU2USB_BUILD_PICO)
         src/usb_hid/usb_descriptors.c
     )
     target_link_libraries(blu2usb_usb_hid PUBLIC tinyusb_device)
+
+    target_sources(blu2usb_bt_runtime PRIVATE src/bt_runtime/bt_runtime_pico.c)
+    target_link_libraries(blu2usb_bt_runtime PRIVATE
+        pico_stdlib
+        pico_btstack_ble
+        pico_btstack_cyw43
+        pico_cyw43_arch_threadsafe_background
+    )
+    target_compile_definitions(blu2usb_bt_runtime PUBLIC
+        CYW43_LWIP=0
+        PICO_BTSTACK_CYW43_MAX_HCI_PROCESS_LOOP_COUNT=8
+    )
+    pico_btstack_make_gatt_header(
+        blu2usb_bt_runtime
+        PRIVATE
+        ${CMAKE_CURRENT_LIST_DIR}/src/bt_runtime/g05_hog_host.gatt
+    )
+
+    target_sources(blu2usb_ble_hogp PRIVATE src/ble_hogp/ble_hogp_pico.c)
+    target_link_libraries(blu2usb_ble_hogp PRIVATE pico_stdlib pico_btstack_ble blu2usb_bt_runtime)
 endif()
 
 # Attach implemented libraries to the frozen architecture facade targets.
+target_link_libraries(blu2usb_module_hid_aggregator INTERFACE blu2usb_hid_aggregator)
 target_link_libraries(blu2usb_module_profiles INTERFACE blu2usb_profiles)
 target_link_libraries(blu2usb_module_interaction INTERFACE blu2usb_interaction)
 target_link_libraries(blu2usb_module_ux_model INTERFACE blu2usb_ux_model)
 target_link_libraries(blu2usb_module_renderer INTERFACE blu2usb_renderer)
 target_link_libraries(blu2usb_module_hat INTERFACE blu2usb_hat)
 target_link_libraries(blu2usb_module_usb_hid INTERFACE blu2usb_usb_hid)
+target_link_libraries(blu2usb_module_bt_runtime INTERFACE blu2usb_bt_runtime)
+target_link_libraries(blu2usb_module_ble_hogp INTERFACE blu2usb_ble_hogp)
 
 if(BLU2USB_BUILD_TESTS)
     enable_testing()
@@ -102,6 +138,7 @@ if(BLU2USB_BUILD_PICO)
         blu2usb_contract
         blu2usb_module_app
     )
+    target_compile_definitions(blu2usb_picow PRIVATE CYW43_LWIP=0)
 
     pico_enable_stdio_usb(blu2usb_picow 0)
     pico_enable_stdio_uart(blu2usb_picow 0)
