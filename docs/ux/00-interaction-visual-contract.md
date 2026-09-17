@@ -40,7 +40,9 @@ Semantic colors are frozen:
 - selected option or pressed visible actionable text: white;
 - current/applied/success/connected active state: cyan.
 
-Cyan is the general positive-state signal. Whenever an operation has been successfully applied, the body text that describes the resulting configuration is cyan. The currently active profile in `MOUSE OPTIONS` is cyan. Current/applied state has final visual precedence over ordinary selection highlighting, so an active profile remains cyan even if the cursor is resting on that same row. A pressed visible control hint may still flash white while physically held.
+Cyan is the general positive-state signal. Whenever an operation has been successfully applied, the body text that describes the resulting configuration is cyan. The currently active profile in `MOUSE OPTIONS` is cyan while it is not selected.
+
+**Selection has visual priority over current/applied state everywhere in the application.** If a row that is normally cyan becomes the currently navigated/selected option, that row is white for as long as it is selected. When selection moves away, the row returns to cyan if it is still the current/applied state. A pressed visible control hint also uses white while physically held.
 
 Option-list items have exactly one leading space. No `>` selector is used.
 
@@ -74,7 +76,8 @@ For every Mouse profile:
 
 - before application, a non-current preset opens its `APPLY ...` page and displays the `KEY A: APPLY` hint;
 - successful Apply opens the feedback/success state and the configuration description is cyan;
-- returning to `MOUSE OPTIONS` shows exactly the active profile name in cyan;
+- returning to `MOUSE OPTIONS` shows exactly the active profile name in cyan when that row is not selected;
+- selecting that active-profile row changes it to white, and moving selection away restores cyan;
 - opening the already-active preset goes directly to its feedback/success state without displaying an Apply hint;
 - switching profiles releases ownership from the old mapping before the new mapping becomes authoritative;
 - the text on each `APPLY ...` screen is normative: the runtime mapping must exactly match the relationships printed on that screen.
@@ -85,7 +88,7 @@ The frozen preset mappings are therefore:
 - `DEFAULT REMAP`: Forward→Left, Left→Forward, Backward→Right, Right→Backward, Middle→Middle;
 - `ESCAPE REMAP`: Forward→Left, Backward→Right, Left→Escape, Right→Backward, Middle→Forward.
 
-For `CUSTOM REMAP`, the complete draft becomes authoritative only after `KEY A: APPLY CUSTOM`. Once applied, the five mapping rows are cyan and the Apply hint is hidden until at least one target changes.
+For `CUSTOM REMAP`, the complete draft becomes authoritative only after `KEY A: APPLY CUSTOM`. Once applied, the five mapping rows are cyan except the currently selected row, which is white; the Apply hint is hidden until at least one target changes.
 
 ## Option lists and pagination
 
@@ -122,7 +125,9 @@ It is didactic. Other than Key Y lock, controls only demonstrate press/release f
 
 `EDIT CUSTOM REMAP` edits the Pico-global CustomTemplate without requiring a connected or saved Mouse. Target order is LEFT, RIGHT, MIDDLE, BACKWARD, FORWARD, ESCAPE.
 
-`KEY A: APPLY AND BACK` changes the draft mapping and returns to `EDIT CUSTOM REMAP`. `KEY A: APPLY CUSTOM` commits the complete draft. Hidden Key B performs one-screen Back without committing the current target page, and hidden Key Y locks.
+`KEY A: APPLY AND BACK` changes the draft mapping and returns to `EDIT CUSTOM REMAP`. The returned `EDIT CUSTOM REMAP` row must immediately reflect the accepted draft value. Example: starting from `LEFT IS LEFT`, choosing `RIGHT` on `LEFT WILL BECOME` and releasing `KEY A: APPLY AND BACK` must return showing `LEFT IS RIGHT`.
+
+`KEY A: APPLY CUSTOM` commits the complete draft. Hidden Key B performs one-screen Back without committing the current target page, and hidden Key Y locks.
 
 ## Inherited accepted rules
 
