@@ -93,6 +93,10 @@ blu2usb_ux_command_t blu2usb_ux_input(blu2usb_ux_model_t *ux, blu2usb_control_t 
 void blu2usb_ux_set_saved_device_count(blu2usb_ux_model_t *ux, unsigned count);
 void blu2usb_ux_set_custom_target(blu2usb_ux_model_t *ux, blu2usb_mouse_source_t source, blu2usb_mouse_target_t target);
 void blu2usb_ux_profile_applied(blu2usb_ux_model_t *ux, blu2usb_mouse_profile_kind_t active_profile);
+void blu2usb_ux_restore_profile_state(
+    blu2usb_ux_model_t *ux,
+    blu2usb_mouse_profile_kind_t active_profile,
+    const blu2usb_mouse_target_t custom_targets[BLU2USB_MOUSE_SOURCE_COUNT]);
 void blu2usb_ux_set_mouse_connected(bool connected);
 bool blu2usb_ux_mouse_connected(void);
 const blu2usb_screen_template_t *blu2usb_ux_screen_template(blu2usb_screen_id_t screen);
