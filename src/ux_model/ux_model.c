@@ -85,10 +85,10 @@ static blu2usb_screen_id_t back_target(const blu2usb_ux_model_t *ux) {
     case BLU2USB_SCREEN_APPLY_PASSTHROUGH:
     case BLU2USB_SCREEN_APPLY_DEFAULT:
     case BLU2USB_SCREEN_APPLY_ESCAPE:
-    case BLU2USB_SCREEN_EDIT_CUSTOM: return BLU2USB_SCREEN_MOUSE_OPTIONS;
-    case BLU2USB_SCREEN_PASSTHROUGH_APPLIED: return BLU2USB_SCREEN_APPLY_PASSTHROUGH;
-    case BLU2USB_SCREEN_DEFAULT_APPLIED: return BLU2USB_SCREEN_APPLY_DEFAULT;
-    case BLU2USB_SCREEN_ESCAPE_APPLIED: return BLU2USB_SCREEN_APPLY_ESCAPE;
+    case BLU2USB_SCREEN_EDIT_CUSTOM:
+    case BLU2USB_SCREEN_PASSTHROUGH_APPLIED:
+    case BLU2USB_SCREEN_DEFAULT_APPLIED:
+    case BLU2USB_SCREEN_ESCAPE_APPLIED: return BLU2USB_SCREEN_MOUSE_OPTIONS;
     case BLU2USB_SCREEN_LEFT_WILL_BECOME:
     case BLU2USB_SCREEN_RIGHT_WILL_BECOME:
     case BLU2USB_SCREEN_MIDDLE_WILL_BECOME:
@@ -141,6 +141,8 @@ void blu2usb_ux_init(blu2usb_ux_model_t *ux) {
     ux->saved_page = 0;
     ux->saved_pages = 1;
     ux->saved_device_count = 0;
+    ux->active_profile = BLU2USB_MOUSE_PROFILE_PASSTHROUGH;
+    ux->custom_dirty = false;
     ux->custom_source = BLU2USB_MOUSE_SOURCE_LEFT;
     ux->custom_targets[BLU2USB_MOUSE_SOURCE_LEFT] = BLU2USB_MOUSE_TARGET_LEFT;
     ux->custom_targets[BLU2USB_MOUSE_SOURCE_RIGHT] = BLU2USB_MOUSE_TARGET_RIGHT;
@@ -158,6 +160,7 @@ void blu2usb_ux_set_saved_device_count(blu2usb_ux_model_t *ux, unsigned count) {
 
 void blu2usb_ux_set_custom_target(blu2usb_ux_model_t *ux, blu2usb_mouse_source_t source, blu2usb_mouse_target_t target) {
     if ((unsigned)source < BLU2USB_MOUSE_SOURCE_COUNT && (unsigned)target < BLU2USB_MOUSE_TARGET_COUNT) {
+        if (ux->custom_targets[source] != target) ux->custom_dirty = true;
         ux->custom_targets[source] = target;
         if (is_will_become(ux->screen) && ux->custom_source == source) ux->selection = (unsigned)target;
     }
@@ -250,10 +253,34 @@ blu2usb_ux_command_t blu2usb_ux_input(blu2usb_ux_model_t *ux, blu2usb_control_t 
     }
 
     if (ux->screen == BLU2USB_SCREEN_MOUSE_OPTIONS && control == BLU2USB_CONTROL_JOY_PRESS) {
-        static const blu2usb_screen_id_t dest[5] = {BLU2USB_SCREEN_PAIR_MOUSE,BLU2USB_SCREEN_APPLY_PASSTHROUGH,BLU2USB_SCREEN_APPLY_DEFAULT,BLU2USB_SCREEN_APPLY_ESCAPE,BLU2USB_SCREEN_EDIT_CUSTOM};
-        unsigned selected = ux->selection;
-        enter(ux, dest[selected]);
-        if (selected == 0) cmd.kind = BLU2USB_UX_COMMAND_PAIR_MOUSE;
+        const unsigned selected = ux->selection;
+        switch (selected) {
+        case 0:
+            enter(ux, BLU2USB_SCREEN_PAIR_MOUSE);
+            cmd.kind = BLU2USB_UX_COMMAND_PAIR_MOUSE;
+            break;
+        case 1:
+            enter(ux, ux->active_profile == BLU2USB_MOUSE_PROFILE_PASSTHROUGH
+                      ? BLU2USB_SCREEN_PASSTHROUGH_APPLIED
+                      : BLU2USB_SCREEN_APPLY_PASSTHROUGH);
+            break;
+        case 2:
+            enter(ux, ux->active_profile == BLU2USB_MOUSE_PROFILE_DEFAULT_REMAP
+                      ? BLU2USB_SCREEN_DEFAULT_APPLIED
+                      : BLU2USB_SCREEN_APPLY_DEFAULT);
+            break;
+        case 3:
+            enter(ux, ux->active_profile == BLU2USB_MOUSE_PROFILE_ESCAPE_REMAP
+                      ? BLU2USB_SCREEN_ESCAPE_APPLIED
+                      : BLU2USB_SCREEN_APPLY_ESCAPE);
+            break;
+        case 4:
+            if (ux->active_profile != BLU2USB_MOUSE_PROFILE_CUSTOM_REMAP) ux->custom_dirty = true;
+            enter(ux, BLU2USB_SCREEN_EDIT_CUSTOM);
+            break;
+        default:
+            break;
+        }
         return cmd;
     }
 
@@ -284,7 +311,12 @@ blu2usb_ux_command_t blu2usb_ux_input(blu2usb_ux_model_t *ux, blu2usb_control_t 
             ux->selection = (unsigned)ux->custom_targets[ux->custom_source];
             return cmd;
         }
-        if (control == BLU2USB_CONTROL_KEY_A) { cmd.kind = BLU2USB_UX_COMMAND_APPLY_CUSTOM; return cmd; }
+        if (control == BLU2USB_CONTROL_KEY_A) {
+            cmd.kind = BLU2USB_UX_COMMAND_APPLY_CUSTOM;
+            ux->active_profile = BLU2USB_MOUSE_PROFILE_CUSTOM_REMAP;
+            ux->custom_dirty = false;
+            return cmd;
+        }
     }
 
     if (is_will_become(ux->screen) && control == BLU2USB_CONTROL_KEY_A) {
@@ -317,12 +349,15 @@ blu2usb_ux_command_t blu2usb_ux_input(blu2usb_ux_model_t *ux, blu2usb_control_t 
 
     if (ux->screen == BLU2USB_SCREEN_APPLY_PASSTHROUGH && control == BLU2USB_CONTROL_KEY_A) {
         cmd.kind = BLU2USB_UX_COMMAND_APPLY_PASSTHROUGH;
+        ux->active_profile = BLU2USB_MOUSE_PROFILE_PASSTHROUGH;
         enter(ux, BLU2USB_SCREEN_PASSTHROUGH_APPLIED);
     } else if (ux->screen == BLU2USB_SCREEN_APPLY_DEFAULT && control == BLU2USB_CONTROL_KEY_A) {
         cmd.kind = BLU2USB_UX_COMMAND_APPLY_DEFAULT;
+        ux->active_profile = BLU2USB_MOUSE_PROFILE_DEFAULT_REMAP;
         enter(ux, BLU2USB_SCREEN_DEFAULT_APPLIED);
     } else if (ux->screen == BLU2USB_SCREEN_APPLY_ESCAPE && control == BLU2USB_CONTROL_KEY_A) {
         cmd.kind = BLU2USB_UX_COMMAND_APPLY_ESCAPE;
+        ux->active_profile = BLU2USB_MOUSE_PROFILE_ESCAPE_REMAP;
         enter(ux, BLU2USB_SCREEN_ESCAPE_APPLIED);
     } else if (ux->screen == BLU2USB_SCREEN_REMOVE_DEVICE && control == BLU2USB_CONTROL_KEY_A) {
         cmd.kind = BLU2USB_UX_COMMAND_REMOVE_DEVICE;
