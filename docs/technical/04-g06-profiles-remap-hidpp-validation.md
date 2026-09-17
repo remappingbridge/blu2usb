@@ -25,9 +25,10 @@ The LCD `APPLY ...` screen is normative: the runtime mapping must exactly match 
 - The profiles/remap engine is the source of truth. A profile is only considered successfully applied after the engine has accepted the full mapping.
 - Cyan is the general success/current-state color for applied configuration values.
 - After a successful profile apply, every visible body line describing the resulting configuration on the feedback screen is cyan instead of yellow.
-- In `MOUSE OPTIONS`, the currently active profile row is cyan and remains cyan even if the selection cursor is resting on that same row.
+- In `MOUSE OPTIONS`, the currently active profile row is cyan while not selected.
+- Selection has global visual priority: when the cursor rests on a cyan/current option, that selected row is white; after moving selection away it returns to cyan if it is still current.
 - Entering the already-active Passthrough, Default Remap or Escape Remap opens its feedback/applied screen directly, without a `KEY A: APPLY` hint.
-- Entering an already-active Custom Remap shows the current Custom configuration without the `KEY A: APPLY CUSTOM` hint until a Custom target is changed.
+- Entering an already-active Custom Remap shows the current Custom configuration without the `KEY A: APPLY CUSTOM` hint until a Custom target is changed. In that screen, the selected mapping row is white and the remaining current rows are cyan.
 - `KEY B` from any profile feedback screen returns directly to `MOUSE OPTIONS` on the first complete press/release. It must never return to the corresponding Apply page.
 
 ## Inherited regression contract
@@ -64,15 +65,16 @@ CI must prove:
 4. Mouse→Mouse remapping produces canonical target button events;
 5. Mouse→Escape produces synthetic canonical Keyboard Escape press/release events;
 6. source-aware aggregation prevents stuck Mouse/Keyboard ownership after remap transitions;
-7. successful profile feedback and the active `MOUSE OPTIONS` row render cyan after final visual precedence is applied;
+7. successful profile feedback is cyan, but any selected cyan/current option is white until selection moves away;
 8. an already-active profile opens feedback without an Apply hint and `KEY B` leaves feedback for `MOUSE OPTIONS` on the first press/release;
-9. the screen contract preserves the accepted Learn geometry, Key-X help label, one-screen Back rule, and absence of `GO TO HOME`;
-10. HID++ feature discovery and Forward diversion request bytes match the frozen feature/CID contract;
-11. HID++ held/released events become canonical Forward transitions only after diversion is acknowledged;
-12. unsupported HID++ transport writes fail safe to standard HOGP behavior;
-13. profiles/remap/HID++ state-machine cores stay free of Pico SDK, TinyUSB, BTstack and raw report-layout dependencies;
-14. the application contains no raw TinyUSB/BTstack/GPIO/SPI primitives and there is no forced USB re-enumeration path;
-15. Pico 2 W production cross-build produces a non-empty UF2.
+9. `KEY A: APPLY AND BACK` on every `<BUTTON> WILL BECOME` screen updates the Custom draft and the returned `EDIT CUSTOM REMAP` text immediately reflects that accepted target;
+10. the screen contract preserves the accepted Learn geometry, Key-X help label, one-screen Back rule, and absence of `GO TO HOME`;
+11. HID++ feature discovery and Forward diversion request bytes match the frozen feature/CID contract;
+12. HID++ held/released events become canonical Forward transitions only after diversion is acknowledged;
+13. unsupported HID++ transport writes fail safe to standard HOGP behavior;
+14. profiles/remap/HID++ state-machine cores stay free of Pico SDK, TinyUSB, BTstack and raw report-layout dependencies;
+15. the application contains no raw TinyUSB/BTstack/GPIO/SPI primitives and there is no forced USB re-enumeration path;
+16. Pico 2 W production cross-build produces a non-empty UF2.
 
 ## Physical scenarios
 
@@ -84,7 +86,7 @@ Flash G06 and power-cycle. The first LCD page remains `PRESS TO LEARN A KEY`; th
 
 ### G06-02 — PASSTHROUGH and success feedback
 
-Navigate to Mouse Options → Passthrough. Because Passthrough is the initial profile, it must open the applied/feedback screen directly with no Apply hint. Its configuration text is cyan. Left, Right, Middle, Backward and Forward keep their native meanings. `KEY B` returns to Mouse Options on the first press/release, where `PASSTHROUGH` is cyan.
+Navigate to Mouse Options → Passthrough. Because Passthrough is the initial profile, it must open the applied/feedback screen directly with no Apply hint. Its configuration text is cyan. Left, Right, Middle, Backward and Forward keep their native meanings. `KEY B` returns to Mouse Options on the first press/release. In Mouse Options, `PASSTHROUGH` is cyan when another option is selected and white while `PASSTHROUGH` itself is selected.
 
 ### G06-03 — DEFAULT REMAP exact mapping
 
@@ -96,7 +98,7 @@ Navigate to Mouse Options → Default Remap and apply it. Validate the exact map
 - Forward generates Mouse Left;
 - Backward generates Mouse Right.
 
-After Apply, every configuration line on the feedback screen is cyan. `KEY B` returns directly to Mouse Options on the first press/release and `DEFAULT REMAP` is cyan there. Re-entering Default Remap opens the feedback screen directly without an Apply hint.
+After Apply, every configuration line on the feedback screen is cyan. `KEY B` returns directly to Mouse Options on the first press/release. `DEFAULT REMAP` is cyan while another row is selected and becomes white while its own row is selected. Re-entering Default Remap opens the feedback screen directly without an Apply hint.
 
 ### G06-04 — ESCAPE REMAP exact mapping
 
@@ -108,7 +110,7 @@ Apply Escape Remap and validate:
 - Forward generates Mouse Left;
 - Backward generates Mouse Right.
 
-After Apply, every configuration line on the feedback screen is cyan. `KEY B` returns directly to Mouse Options on the first press/release and `ESCAPE REMAP` is cyan there. Re-entering Escape Remap opens feedback directly without an Apply hint.
+After Apply, every configuration line on the feedback screen is cyan. `KEY B` returns directly to Mouse Options on the first press/release. `ESCAPE REMAP` is cyan while another row is selected and white while its own row is selected. Re-entering Escape Remap opens feedback directly without an Apply hint.
 
 ### G06-05 — Synthetic Escape press/release
 
@@ -116,7 +118,9 @@ With Escape Remap or a Custom profile that maps a button to Escape, open a host 
 
 ### G06-06 — CUSTOM REMAP
 
-Open Custom Remap. Change at least two source buttons, including one mapping to `ESCAPE` and one mapping to another Mouse button, then apply Custom. Both mappings must take effect simultaneously while X/Y/wheel remain unchanged. After Apply, the current Custom configuration is shown as successful/current in cyan and the Apply Custom hint is absent until another target is changed. Back once returns to Mouse Options, where `CUSTOM REMAP` is cyan.
+Open Custom Remap. Before applying the complete Custom profile, validate draft reflection explicitly: select `LEFT IS LEFT`, enter `LEFT WILL BECOME`, choose `RIGHT`, then release `KEY A: APPLY AND BACK`. On return to `EDIT CUSTOM REMAP`, the first row must immediately read `LEFT IS RIGHT`. Repeat with at least one additional source, including one target mapped to `ESCAPE`.
+
+Then apply Custom. Both mappings must take effect simultaneously while X/Y/wheel remain unchanged. After Apply, the current Custom configuration is shown as successful/current: the selected mapping row is white, the remaining current mapping rows are cyan, and the Apply Custom hint is absent until another target is changed. Back once returns to Mouse Options, where `CUSTOM REMAP` follows the same rule: cyan when not selected, white when selected.
 
 ### G06-07 — Profile change while a mapped control was active
 
