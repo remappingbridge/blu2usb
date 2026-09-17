@@ -25,6 +25,11 @@ bool blu2usb_bt_runtime_publish(uint16_t channel, uint16_t type, const void *pay
 bool blu2usb_bt_runtime_poll(blu2usb_bt_runtime_message_t *message);
 bool blu2usb_bt_runtime_take_overflow(void);
 
+/* Additional adapters register their BTstack setup before the runtime starts.
+ * The primary setup argument to start is retained for the accepted BLE path. */
+bool blu2usb_bt_runtime_register_session_setup(
+    blu2usb_bt_runtime_session_setup_fn session_setup);
+
 /* Pico implementation owns CYW43/BTstack on core 0 using the SDK
  * threadsafe-background async context; no application-owned BT run loop. */
 bool blu2usb_bt_runtime_start(blu2usb_bt_runtime_session_setup_fn session_setup);
