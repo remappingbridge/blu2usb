@@ -1,9 +1,21 @@
 #include "blu2usb/ux_model/ux_model.h"
 
+static bool g_mouse_connected;
+
 static bool valid_profile(blu2usb_mouse_profile_kind_t profile)
 {
     return profile >= BLU2USB_MOUSE_PROFILE_PASSTHROUGH &&
            profile <= BLU2USB_MOUSE_PROFILE_CUSTOM_REMAP;
+}
+
+void blu2usb_ux_set_mouse_connected(bool connected)
+{
+    g_mouse_connected = connected;
+}
+
+bool blu2usb_ux_mouse_connected(void)
+{
+    return g_mouse_connected;
 }
 
 void blu2usb_ux_profile_applied(blu2usb_ux_model_t *ux,
@@ -26,7 +38,7 @@ void blu2usb_ux_profile_applied(blu2usb_ux_model_t *ux,
         break;
     case BLU2USB_MOUSE_PROFILE_CUSTOM_REMAP:
         ux->custom_dirty = false;
-        ux->screen = BLU2USB_SCREEN_EDIT_CUSTOM;
+        ux->screen = BLU2USB_SCREEN_CUSTOM_APPLIED;
         break;
     default:
         break;
