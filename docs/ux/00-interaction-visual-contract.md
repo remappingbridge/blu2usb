@@ -66,11 +66,13 @@ There is no `GO TO HOME` action. No screen may expose or implement `JOY LEFT: GO
 
 Help is the exception in presentation only: `ANY KEY: BACK` consumes any HAT control and returns to its owning page; Key Y does not lock while Help owns interaction.
 
-Profile success pages are not an extra navigation level. `KEY B: BACK` from `PASSTHROUGH APPLIED`, `DEFAULT REMAP APPLIED`, `ESCAPE APPLIED`, or the applied Custom feedback returns directly to `MOUSE OPTIONS` on the first complete press/release interaction. It must never return to the corresponding `APPLY ...` page.
+Profile success pages are not an extra navigation level. `KEY B: BACK` from `PASSTHROUGH APPLIED`, `DEFAULT REMAP APPLIED`, `ESCAPE APPLIED`, or `CUSTOM APPLIED` returns directly to `MOUSE OPTIONS` on the first complete press/release interaction. It must never return to the corresponding `APPLY ...` or edit page.
+
+`MOUSE PAIRED` is also a connection feedback page rather than an extra navigation level. `KEY B: BACK` from it returns directly to `MOUSE OPTIONS`.
 
 ## Profile application and feedback contract
 
-The profile engine is the source of truth. A profile is considered applied only after the profiles/remap runtime has accepted the complete configuration. The UI then reflects that confirmed active profile.
+The profile engine is the source of truth. A profile is considered applied only after the profiles/remap runtime has accepted the complete configuration. The UI then reflects that confirmed active profile. Pressing an Apply control must not optimistically change the active profile or enter the success screen before runtime confirmation.
 
 For every Mouse profile:
 
@@ -88,7 +90,25 @@ The frozen preset mappings are therefore:
 - `DEFAULT REMAP`: Forward→Left, Left→Forward, Backward→Right, Right→Backward, Middle→Middle;
 - `ESCAPE REMAP`: Forward→Left, Backward→Right, Left→Escape, Right→Backward, Middle→Forward.
 
-For `CUSTOM REMAP`, the complete draft becomes authoritative only after `KEY A: APPLY CUSTOM`. Once applied, the five mapping rows are cyan except the currently selected row, which is white; the Apply hint is hidden until at least one target changes.
+For `CUSTOM REMAP`, the complete draft becomes authoritative only after `KEY A: APPLY CUSTOM` and runtime confirmation. Successful application opens a dedicated `CUSTOM APPLIED` page. It shows the five resulting mappings in cyan and exactly the hints `KEY B: BACK` and `KEY Y: LOCK`. `KEY B` returns directly to `MOUSE OPTIONS`, where `CUSTOM REMAP` is cyan while unselected. Re-entering an already-active Custom profile opens `EDIT CUSTOM REMAP` with the current five mappings; `KEY A: APPLY CUSTOM` remains hidden until at least one target changes.
+
+## Live Mouse connection and status contract
+
+The BLE HOGP `CONNECTED`/`DISCONNECTED` runtime events are the source of truth for live Mouse connection UX in G06. The UI must update from those events; it must not infer connection from whether Mouse reports happened recently.
+
+When a Mouse is connected:
+
+- `MOUSE STATUS` row 1 is exactly `MOUSE CONNECTED` and is cyan;
+- all other ordinary status body text remains the normal off-white yellow unless another explicit semantic rule applies;
+- `PROFILE:` reflects the confirmed current profile and must never remain frozen on Passthrough after a profile change;
+- the supported display values are `PROFILE: PASSTHROUGH`, `PROFILE: DEFAULT`, `PROFILE: ESCAPE`, and `PROFILE: CUSTOM`;
+- `PAIR MOUSE` in `MOUSE OPTIONS` is cyan while unselected, and becomes white while selected;
+- accessing `PAIR MOUSE` while already connected does not start or display a new search. It opens `MOUSE PAIRED`, whose positive body text is cyan;
+- if the connection completes while `PAIR MOUSE` is currently searching, the LCD immediately transitions to `MOUSE PAIRED` without requiring another HAT input.
+
+When the Mouse disconnects, `MOUSE STATUS` returns to `MOUSE NOT CONNECTED` in the normal yellow status color and `PAIR MOUSE` no longer carries the cyan connected-state marker.
+
+The G06 live-connection contract does **not** require persistent saved-device names/models after power cycle. Device-name persistence, saved-device management and restoration remain later-gate concerns.
 
 ## Option lists and pagination
 
@@ -127,7 +147,7 @@ It is didactic. Other than Key Y lock, controls only demonstrate press/release f
 
 `KEY A: APPLY AND BACK` changes the draft mapping and returns to `EDIT CUSTOM REMAP`. The returned `EDIT CUSTOM REMAP` row must immediately reflect the accepted draft value. Example: starting from `LEFT IS LEFT`, choosing `RIGHT` on `LEFT WILL BECOME` and releasing `KEY A: APPLY AND BACK` must return showing `LEFT IS RIGHT`.
 
-`KEY A: APPLY CUSTOM` commits the complete draft. Hidden Key B performs one-screen Back without committing the current target page, and hidden Key Y locks.
+`KEY A: APPLY CUSTOM` submits the complete draft to the profile engine. Only after the engine confirms it does the LCD enter `CUSTOM APPLIED`. Hidden Key B performs one-screen Back without committing the current target page, and hidden Key Y locks.
 
 ## Inherited accepted rules
 
@@ -147,4 +167,4 @@ The following previously accepted gate corrections remain normative and must be 
 
 ## Dynamic/example body text
 
-Dynamic/example body text remains unindented and off-white yellow unless explicitly representing current/success state. Fixed blocks in `01-screen-layouts.md` are literal.
+Dynamic/example body text remains unindented and off-white yellow unless explicitly representing current/success/connected state. Fixed blocks in `01-screen-layouts.md` are literal.
