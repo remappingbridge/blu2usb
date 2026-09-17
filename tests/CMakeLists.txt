@@ -63,6 +63,28 @@ add_test(
             ${PROJECT_SOURCE_DIR}
 )
 
+add_executable(blu2usb_test_g07_keyboard_transport test_g07_keyboard_transport.c)
+target_link_libraries(blu2usb_test_g07_keyboard_transport PRIVATE
+    blu2usb_classic_hid
+    blu2usb_keyboard_transport
+    blu2usb_hid_aggregator
+    blu2usb_bt_runtime
+)
+add_test(NAME g07_keyboard_transport COMMAND blu2usb_test_g07_keyboard_transport)
+
+add_executable(blu2usb_test_g07_keyboard_ui test_g07_keyboard_ui.c)
+target_link_libraries(blu2usb_test_g07_keyboard_ui PRIVATE
+    blu2usb_renderer
+    blu2usb_ux_model
+)
+add_test(NAME g07_keyboard_ui COMMAND blu2usb_test_g07_keyboard_ui)
+
+add_test(
+    NAME g07_architecture
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_g07_architecture.py
+            ${PROJECT_SOURCE_DIR}
+)
+
 add_test(
     NAME screen_contract
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_screen_contract.py
