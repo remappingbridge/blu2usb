@@ -14,6 +14,7 @@
 #include "blu2usb/remap/remap.h"
 #include "blu2usb/renderer/renderer.h"
 #include "blu2usb/renderer/st7789_pico.h"
+#include "blu2usb/storage/storage.h"
 #include "blu2usb/usb_hid/usb_hid.h"
 #include "blu2usb/ux_model/ux_model.h"
 
@@ -92,6 +93,35 @@ static bool same_profile_config(const blu2usb_mouse_profile_config_t *left,
            memcmp(left->targets, right->targets, sizeof(left->targets)) == 0;
 }
 
+static bool persist_profiles(const blu2usb_profiles_t *profiles)
+{
+    uint8_t payload[BLU2USB_PROFILE_SERIALIZED_SIZE];
+    return blu2usb_profiles_serialize(profiles, payload) &&
+           blu2usb_storage_store(payload, sizeof(payload));
+}
+
+static bool restore_profiles(blu2usb_profiles_t *profiles)
+{
+    uint8_t payload[BLU2USB_STORAGE_MAX_PAYLOAD_SIZE];
+    size_t payload_size = 0u;
+    if (!blu2usb_storage_load(payload, sizeof(payload), &payload_size) ||
+        payload_size != BLU2USB_PROFILE_SERIALIZED_SIZE) return false;
+    return blu2usb_profiles_restore(profiles, payload);
+}
+
+static void synchronize_ux_profiles(blu2usb_ux_model_t *ux,
+                                    const blu2usb_profiles_t *profiles)
+{
+    if (ux == NULL || profiles == NULL) return;
+    ux->active_profile = profiles->active_kind;
+    ux->custom_dirty = profiles->draft_valid;
+    for (unsigned source = 0u; source < BLU2USB_MOUSE_SOURCE_COUNT; ++source) {
+        ux->custom_targets[source] = profiles->draft_valid
+            ? profiles->draft_targets[source]
+            : profiles->custom_targets[source];
+    }
+}
+
 static bool apply_profile(blu2usb_profiles_t *profiles,
                           blu2usb_remap_t *remap,
                           blu2usb_hid_aggregator_t *aggregator,
@@ -99,17 +129,25 @@ static bool apply_profile(blu2usb_profiles_t *profiles,
                           bool *mouse_valid,
                           bool *keyboard_valid)
 {
+    if (profiles == NULL || remap == NULL || aggregator == NULL ||
+        config == NULL || mouse_valid == NULL || keyboard_valid == NULL) return false;
+
+    const blu2usb_profiles_t previous = *profiles;
+    blu2usb_profiles_activate(profiles, config);
+
+    blu2usb_mouse_profile_config_t active;
+    blu2usb_profiles_configure_active(profiles, &active);
+    if (!same_profile_config(&active, config) || !persist_profiles(profiles)) {
+        *profiles = previous;
+        return false;
+    }
+
     const blu2usb_hid_source_t mouse =
         blu2usb_hid_source_make(BLU2USB_HID_SOURCE_MOUSE, 1u);
     const blu2usb_hid_source_t synthetic =
         blu2usb_hid_source_make(BLU2USB_HID_SOURCE_SYNTHETIC_REMAP, 1u);
     (void)blu2usb_hid_aggregator_release_source(aggregator, mouse);
     (void)blu2usb_hid_aggregator_release_source(aggregator, synthetic);
-    blu2usb_profiles_activate(profiles, config);
-
-    blu2usb_mouse_profile_config_t active;
-    blu2usb_profiles_configure_active(profiles, &active);
-    if (!same_profile_config(&active, config)) return false;
 
     blu2usb_remap_set_profile(remap, &active);
     blu2usb_logitech_hidpp_pico_set_forward_fix(
@@ -123,6 +161,7 @@ static void confirm_applied_profile(blu2usb_ux_model_t *ux,
                                     const blu2usb_profiles_t *profiles)
 {
     if (ux == NULL || profiles == NULL) return;
+    synchronize_ux_profiles(ux, profiles);
     blu2usb_ux_profile_applied(ux, profiles->active_kind);
 }
 
@@ -157,10 +196,16 @@ static void handle_ux_command(blu2usb_ux_model_t *ux,
                           mouse_valid, keyboard_valid))
             confirm_applied_profile(ux, profiles);
         break;
-    case BLU2USB_UX_COMMAND_CUSTOM_SET_TARGET:
-        if (blu2usb_profiles_draft_set(profiles, command.source, command.target))
+    case BLU2USB_UX_COMMAND_CUSTOM_SET_TARGET: {
+        const blu2usb_profiles_t previous = *profiles;
+        if (blu2usb_profiles_draft_set(profiles, command.source, command.target) &&
+            persist_profiles(profiles)) {
             blu2usb_ux_set_custom_target(ux, command.source, command.target);
+        } else {
+            *profiles = previous;
+        }
         break;
+    }
     case BLU2USB_UX_COMMAND_APPLY_CUSTOM:
         if (blu2usb_profiles_custom_candidate(profiles, &candidate) &&
             apply_profile(profiles, remap, aggregator, &candidate,
@@ -249,7 +294,13 @@ int main(void)
     ux.screen = BLU2USB_SCREEN_LEARN_KEYS;
     blu2usb_hid_aggregator_init(&aggregator);
     blu2usb_profiles_init(&profiles);
+    (void)restore_profiles(&profiles);
+    synchronize_ux_profiles(&ux, &profiles);
+
     blu2usb_remap_init(&remap);
+    blu2usb_mouse_profile_config_t boot_profile;
+    blu2usb_profiles_configure_active(&profiles, &boot_profile);
+    blu2usb_remap_set_profile(&remap, &boot_profile);
 
     if (!blu2usb_usb_hid_pico_init()) for (;;) tight_loop_contents();
     blu2usb_hat_pico_init();
@@ -260,6 +311,8 @@ int main(void)
     blu2usb_st7789_pico_set_backlight(true);
 
     (void)blu2usb_logitech_hidpp_pico_start();
+    blu2usb_logitech_hidpp_pico_set_forward_fix(
+        blu2usb_profiles_requires_forward_held_fix(&boot_profile));
     (void)blu2usb_ble_hogp_start();
 
     for (;;) {
