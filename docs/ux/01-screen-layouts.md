@@ -22,7 +22,9 @@ KEY Y: LOCK / UNLOCK
 
 ## MOUSE STATUS
 
-Body is example/dynamic. Hidden: Key Y Lock.
+Body is dynamic. Hidden: Key Y Lock.
+
+Disconnected example:
 
 ```text
 MOUSE STATUS
@@ -35,6 +37,22 @@ JOY RIGHT\LEFT: PAGE
 KEY B: BACK
 KEY X: MOUSE HELP
 ```
+
+Connected example:
+
+```text
+MOUSE STATUS
+MOUSE CONNECTED
+PROFILE: DEFAULT
+FWD: AUTO HIDPP
+BACK: AUTO STD
+
+JOY RIGHT\LEFT: PAGE
+KEY B: BACK
+KEY X: MOUSE HELP
+```
+
+`MOUSE CONNECTED` is cyan. The disconnected text and the remaining ordinary status body text are off-white yellow. `PROFILE:` always reflects the confirmed active profile and may display `PASSTHROUGH`, `DEFAULT`, `ESCAPE`, or `CUSTOM`.
 
 ## OTHER DEVICES STATUS
 
@@ -98,6 +116,8 @@ JOY PRESS: ACCESS
 KEY B: BACK
 ```
 
+When a Mouse is connected, `PAIR MOUSE` is cyan while unselected. If the selection cursor rests on it, it is white. The active profile follows the same cyan-unselected/white-selected rule.
+
 ## PAIR MOUSE
 
 Body is example/dynamic. Hidden: Key B Back; Key Y Lock. Help is driven by the physical Key X control on the Waveshare HAT.
@@ -116,6 +136,8 @@ KEY X: HELP
 
 `KEY B: CANCEL` has the same navigation rule as Back: it returns exactly one logical page, to `MOUSE OPTIONS`, without applying a pending action.
 
+If a Mouse is already connected, accessing `PAIR MOUSE` must not show this searching screen. If the Mouse becomes connected while this searching screen is visible, the LCD must immediately leave it. Both cases open the `MOUSE PAIRED` feedback below.
+
 ## PAIR MOUSE HELP
 
 ```text
@@ -130,14 +152,14 @@ PAIR MOUSE HELP
 ANY KEY: BACK
 ```
 
-## MOUSE SAVED
+## MOUSE PAIRED
 
-Body is example/dynamic success content.
+Positive body text is cyan. This is live connection feedback, not the later saved-device persistence feature.
 
 ```text
-MOUSE SAVED
-TYPE MOUSE
-SAVED DEVICES UPDATED
+MOUSE PAIRED
+MOUSE CONNECTED
+READY TO USE
 
 
 
@@ -145,6 +167,8 @@ SAVED DEVICES UPDATED
 KEY B: BACK
 KEY Y: LOCK
 ```
+
+`KEY B: BACK` returns directly to `MOUSE OPTIONS`.
 
 ## PASSTHROUGH — before apply
 
@@ -236,7 +260,7 @@ KEY Y: LOCK
 
 ## EDIT CUSTOM REMAP
 
-Hidden: Joy Up/Down Select; Key B Back; Key Y Lock.
+Hidden: Joy Up/Down Select; Key B Back; Key Y Lock. The five mapping rows are dynamic and must reflect the current Custom draft.
 
 ```text
 EDIT CUSTOM REMAP
@@ -249,6 +273,26 @@ EDIT CUSTOM REMAP
 JOY PRESS: ACCESS
 KEY A: APPLY CUSTOM
 ```
+
+When the already-active Custom profile is opened without pending changes, `KEY A: APPLY CUSTOM` is hidden until a mapping is changed.
+
+## CUSTOM APPLIED
+
+The five mapping rows are dynamic and show the exact confirmed Custom configuration. All five are cyan.
+
+```text
+CUSTOM APPLIED
+LEFT IS RIGHT
+RIGHT IS RIGHT
+MIDDLE IS MIDDLE
+FORWARD IS FORWARD
+BACKWARD IS BACKWARD
+
+KEY B: BACK
+KEY Y: LOCK
+```
+
+The shown `LEFT IS RIGHT` is only an example of a confirmed custom mapping. `KEY B: BACK` returns directly to `MOUSE OPTIONS`.
 
 ## LEFT WILL BECOME
 
