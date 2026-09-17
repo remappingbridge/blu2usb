@@ -2,17 +2,29 @@
 
 ## Grid and retained pixel relocation
 
-Every screen uses the fixed 9x21 semantic grid. The physically accepted pixel placement from the earlier Waveshare gate is retained for every new screen, regardless of wording changes:
+Every screen uses the fixed 9x21 semantic grid. The physically accepted pixel relocation from the earlier remapper gates is retained for every new screen, regardless of wording changes. The semantic row number does **not** imply a uniform physical 27-pixel Y advance on normal screens.
+
+Base geometry remains:
 
 - LCD: 240x240;
 - glyph source: 5x7, scale 2;
 - glyph box: 10x14 pixels;
-- first cell origin: x=7, y=8;
+- first title origin: x=7, y=8;
 - horizontal character advance: 11 pixels;
-- vertical row advance: 27 pixels;
-- cell `(row,column)` is rendered at `x = 7 + column*11`, `y = 8 + row*27`;
-- standard screens split black main content from dark-magenta hints at the midpoint of the empty semantic separator row immediately above the first visible hint;
-- wording changes never change these pixel coordinates or the relocation rule.
+- semantic line advance: 27 pixels, used only as the fallback/base grid.
+
+Horizontal placement is always `x = 7 + column*11`.
+
+Vertical placement preserves the accepted relocation used by the previous `picow-remapper` gates:
+
+- title row: y=8;
+- first standard body row: `8 + 14 + 17 = 39`;
+- standard body advance: `14 + 12 = 26` pixels;
+- standard hints are anchored from the bottom: final hint row y=`240 - 12 - 14 = 214`, with 26-pixel advance upward;
+- the dark-magenta hint region starts 11 pixels above the first visible hint;
+- `LEARN THE KEYS` keeps title y=8, first body row y=39, and uses `14 + 11 = 25` pixels between didactic rows.
+
+The semantic separator row remains text-empty. Its physical Y is only a fallback location; the standard black/dark-magenta boundary is derived from the relocated first hint. Wording changes never change these relocation rules.
 
 Every canonical screen has exactly 9 rows and at most 21 characters per row. Exact layouts are in `01-screen-layouts.md`.
 
@@ -73,7 +85,7 @@ While locked, the first complete physical HAT interaction from any control is co
 
 The normative per-screen visible and hidden controls are defined beside each layout in `01-screen-layouts.md`. Those declarations are part of the product contract, not commentary.
 
-Hardware controls are `JOY UP`, `JOY DOWN`, `JOY LEFT`, `JOY RIGHT`, `JOY PRESS`, `KEY A`, `KEY B`, `KEY X`, and `KEY Y`. There is no physical `KEY C`; Help on Pair Mouse therefore uses `KEY X`, consistent with the HAT and all other Pair screens.
+Hardware controls are `JOY UP`, `JOY DOWN`, `JOY LEFT`, `JOY RIGHT`, `JOY PRESS`, `KEY A`, `KEY B`, `KEY X`, and `KEY Y`. The Pair Mouse screen keeps the requested UI label `KEY C: HELP`; on the Waveshare HAT that action is driven by the physical help face control wired as `KEY X`. Pair Keyboard and Pair Composite continue to display `KEY X: HELP`.
 
 ## Learn The Keys
 
