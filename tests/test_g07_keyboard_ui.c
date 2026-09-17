@@ -112,11 +112,24 @@ static void test_pair_keyboard_success_body_is_cyan(void)
     assert_row_tone(&frame, 2u, BLU2USB_UI_TONE_CURRENT);
 }
 
+static void test_keyboard_saved_back_returns_other_options(void)
+{
+    blu2usb_ux_model_t ux;
+    init_ux(&ux);
+    ux.screen = BLU2USB_SCREEN_KEYBOARD_SAVED;
+
+    (void)blu2usb_ux_input(&ux, BLU2USB_CONTROL_KEY_B, true);
+    assert(ux.screen == BLU2USB_SCREEN_KEYBOARD_SAVED);
+    (void)blu2usb_ux_input(&ux, BLU2USB_CONTROL_KEY_B, false);
+    assert(ux.screen == BLU2USB_SCREEN_OTHER_OPTIONS);
+}
+
 int main(void)
 {
     test_other_devices_status_tracks_keyboard();
     test_pair_keyboard_row_cyan_but_selection_white();
     test_pair_keyboard_pin_projection();
     test_pair_keyboard_success_body_is_cyan();
+    test_keyboard_saved_back_returns_other_options();
     return 0;
 }
