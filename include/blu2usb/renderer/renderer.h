@@ -17,6 +17,16 @@
 #define BLU2USB_RENDERER_LINE_ADVANCE 27u
 #define BLU2USB_RENDERER_TEXT_X 7u
 #define BLU2USB_RENDERER_TEXT_Y 8u
+#define BLU2USB_RENDERER_VERTICAL_GAP (BLU2USB_RENDERER_LINE_ADVANCE - BLU2USB_RENDERER_GLYPH_HEIGHT)
+
+#define BLU2USB_RENDERER_TITLE_BODY_GAP 17u
+#define BLU2USB_RENDERER_BODY_LINE_GAP 12u
+#define BLU2USB_RENDERER_BODY_BOTTOM_GAP 20u
+#define BLU2USB_RENDERER_HINT_TOP_GAP 11u
+#define BLU2USB_RENDERER_HINT_LINE_GAP 12u
+#define BLU2USB_RENDERER_HINT_BOTTOM_GAP 12u
+#define BLU2USB_RENDERER_LEARN_LINE_GAP 11u
+#define BLU2USB_RENDERER_LEARN_BOTTOM_GAP 12u
 
 #define BLU2USB_COLOR_BLACK 0x0000u
 #define BLU2USB_COLOR_WHITE 0xffffu
@@ -58,6 +68,7 @@ void blu2usb_ui_project(const blu2usb_ux_model_t *ux, blu2usb_ui_frame_t *frame)
 uint16_t blu2usb_renderer_tone_rgb565(blu2usb_ui_tone_t tone);
 uint16_t blu2usb_renderer_background_rgb565(const blu2usb_ui_frame_t *frame, uint8_t row);
 uint16_t blu2usb_renderer_separator_boundary_y(const blu2usb_ui_frame_t *frame);
+uint16_t blu2usb_renderer_text_y(const blu2usb_ui_frame_t *frame, uint8_t row);
 bool blu2usb_renderer_render(const blu2usb_display_hal_t *display, const blu2usb_ui_frame_t *frame);
 
 #endif
