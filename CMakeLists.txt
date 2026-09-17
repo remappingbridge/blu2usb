@@ -120,9 +120,18 @@ if(BLU2USB_BUILD_PICO)
     # G07 owns exactly one compiled BTstack image. Both BLE and Classic source
     # sets are materialized into this runtime archive so the protocol adapters
     # do not each compile another copy of hci/l2cap/btstack_memory.
+    #
+    # The BKB-3G POC, integrated PICO-08 BLE+Classic firmware and the later
+    # Classic G02/G03 line all execute Bluetooth on a dedicated Core1. Keep the
+    # same proven execution envelope here: explicit 8 KiB SRAM stack in
+    # bt_runtime_pico.c, no linker-owned default Core1 stack, Core0 reserved for
+    # USB/HAT/LCD/application work.
     target_sources(blu2usb_bt_runtime PRIVATE src/bt_runtime/bt_runtime_pico.c)
     target_link_libraries(blu2usb_bt_runtime PRIVATE
         pico_stdlib
+        pico_multicore
+        pico_flash
+        hardware_sync
         pico_btstack_ble
         pico_btstack_classic
         pico_btstack_cyw43
@@ -131,6 +140,7 @@ if(BLU2USB_BUILD_PICO)
     target_compile_definitions(blu2usb_bt_runtime PUBLIC
         CYW43_LWIP=0
         PICO_BTSTACK_CYW43_MAX_HCI_PROCESS_LOOP_COUNT=8
+        PICO_CORE1_STACK_SIZE=0
     )
     pico_btstack_make_gatt_header(
         blu2usb_bt_runtime
