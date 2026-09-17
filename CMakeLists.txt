@@ -14,7 +14,7 @@ if(BLU2USB_BUILD_PICO)
     include("${PICO_SDK_PATH}/external/pico_sdk_import.cmake")
 endif()
 
-project(blu2usb_picow VERSION 0.4.0 LANGUAGES C CXX ASM)
+project(blu2usb_picow VERSION 0.5.0 LANGUAGES C CXX ASM)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -35,7 +35,10 @@ blu2usb_declare_contract_modules()
 
 add_library(blu2usb_contract STATIC src/domain/version.c)
 target_include_directories(blu2usb_contract PUBLIC include)
-target_compile_definitions(blu2usb_contract PUBLIC BLU2USB_VERSION_STRING="0.4.0-g04")
+target_compile_definitions(blu2usb_contract PUBLIC BLU2USB_VERSION_STRING="0.5.0-g05")
+
+add_library(blu2usb_hid_aggregator STATIC src/hid_aggregator/hid_aggregator.c)
+target_include_directories(blu2usb_hid_aggregator PUBLIC include)
 
 add_library(blu2usb_profiles STATIC src/profiles/custom_template.c)
 target_include_directories(blu2usb_profiles PUBLIC include)
@@ -71,6 +74,7 @@ if(BLU2USB_BUILD_PICO)
 endif()
 
 # Attach implemented libraries to the frozen architecture facade targets.
+target_link_libraries(blu2usb_module_hid_aggregator INTERFACE blu2usb_hid_aggregator)
 target_link_libraries(blu2usb_module_profiles INTERFACE blu2usb_profiles)
 target_link_libraries(blu2usb_module_interaction INTERFACE blu2usb_interaction)
 target_link_libraries(blu2usb_module_ux_model INTERFACE blu2usb_ux_model)
