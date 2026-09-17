@@ -1,13 +1,15 @@
 #include "blu2usb/renderer/renderer.h"
 
-static void set_row_tone(blu2usb_ui_frame_t *frame,
-                         uint8_t row,
-                         blu2usb_ui_tone_t tone)
+#include <stdio.h>
+
+static void set_row_current_preserving_selection(blu2usb_ui_frame_t *frame,
+                                                  uint8_t row)
 {
     if (frame == NULL || row >= BLU2USB_RENDERER_TEXT_ROWS) return;
     for (uint8_t column = 0u; column < BLU2USB_RENDERER_TEXT_COLS; ++column) {
-        if (frame->cells[row][column].character != ' ')
-            frame->cells[row][column].tone = tone;
+        if (frame->cells[row][column].character == ' ') continue;
+        if (frame->cells[row][column].tone == BLU2USB_UI_TONE_EMPHASIZED) continue;
+        frame->cells[row][column].tone = BLU2USB_UI_TONE_CURRENT;
     }
 }
 
@@ -33,6 +35,54 @@ static uint8_t active_profile_row(const blu2usb_ux_model_t *ux)
     }
 }
 
+static const char *custom_source_name(unsigned source)
+{
+    static const char *const names[BLU2USB_MOUSE_SOURCE_COUNT] = {
+        "LEFT", "RIGHT", "MIDDLE", "FORWARD", "BACKWARD"
+    };
+    return source < BLU2USB_MOUSE_SOURCE_COUNT ? names[source] : "LEFT";
+}
+
+static const char *custom_target_name(blu2usb_mouse_target_t target)
+{
+    static const char *const names[BLU2USB_MOUSE_TARGET_COUNT] = {
+        "LEFT", "RIGHT", "MIDDLE", "BACKWARD", "FORWARD", "ESCAPE"
+    };
+    return (unsigned)target < BLU2USB_MOUSE_TARGET_COUNT ? names[target] : "LEFT";
+}
+
+static void project_custom_rows(const blu2usb_ux_model_t *ux,
+                                blu2usb_ui_frame_t *frame)
+{
+    const bool clean_applied =
+        ux->active_profile == BLU2USB_MOUSE_PROFILE_CUSTOM_REMAP && !ux->custom_dirty;
+
+    for (uint8_t source = 0u; source < BLU2USB_MOUSE_SOURCE_COUNT; ++source) {
+        const uint8_t row = (uint8_t)(source + 1u);
+        char text[BLU2USB_RENDERER_TEXT_COLS + 1u];
+        (void)snprintf(text, sizeof(text), " %s IS %s",
+                       custom_source_name(source),
+                       custom_target_name(ux->custom_targets[source]));
+
+        for (uint8_t column = 0u; column < BLU2USB_RENDERER_TEXT_COLS; ++column) {
+            frame->cells[row][column].character = ' ';
+            frame->cells[row][column].tone = BLU2USB_UI_TONE_ACTIONABLE;
+        }
+
+        const blu2usb_ui_tone_t tone = ux->selection == source
+            ? BLU2USB_UI_TONE_EMPHASIZED
+            : clean_applied
+                ? BLU2USB_UI_TONE_CURRENT
+                : BLU2USB_UI_TONE_ACTIONABLE;
+        (void)blu2usb_ui_frame_set_text(frame, row, 0u, text, tone);
+    }
+
+    if (clean_applied) {
+        for (uint8_t column = 0u; column < BLU2USB_RENDERER_TEXT_COLS; ++column)
+            frame->cells[8u][column].character = ' ';
+    }
+}
+
 void blu2usb_ui_enforce_applied_visual_contract(const blu2usb_ux_model_t *ux,
                                                  blu2usb_ui_frame_t *frame)
 {
@@ -43,26 +93,20 @@ void blu2usb_ui_enforce_applied_visual_contract(const blu2usb_ux_model_t *ux,
             ? frame->hint_start_row
             : BLU2USB_RENDERER_TEXT_ROWS;
         for (uint8_t row = 1u; row < end; ++row)
-            set_row_tone(frame, row, BLU2USB_UI_TONE_CURRENT);
+            set_row_current_preserving_selection(frame, row);
     }
 
     const uint8_t profile_row = active_profile_row(ux);
     if (profile_row != 0u)
-        set_row_tone(frame, profile_row, BLU2USB_UI_TONE_CURRENT);
+        set_row_current_preserving_selection(frame, profile_row);
 
-    if (ux->screen == BLU2USB_SCREEN_EDIT_CUSTOM &&
-        ux->active_profile == BLU2USB_MOUSE_PROFILE_CUSTOM_REMAP &&
-        !ux->custom_dirty) {
-        for (uint8_t row = 1u; row <= 5u; ++row)
-            set_row_tone(frame, row, BLU2USB_UI_TONE_CURRENT);
-        for (uint8_t column = 0u; column < BLU2USB_RENDERER_TEXT_COLS; ++column)
-            frame->cells[8u][column].character = ' ';
-    }
+    if (ux->screen == BLU2USB_SCREEN_EDIT_CUSTOM)
+        project_custom_rows(ux, frame);
 
     if (ux->screen >= BLU2USB_SCREEN_LEFT_WILL_BECOME &&
         ux->screen <= BLU2USB_SCREEN_BACKWARD_WILL_BECOME) {
         const uint8_t current_row =
             (uint8_t)(1u + (unsigned)ux->custom_targets[ux->custom_source]);
-        set_row_tone(frame, current_row, BLU2USB_UI_TONE_CURRENT);
+        set_row_current_preserving_selection(frame, current_row);
     }
 }
