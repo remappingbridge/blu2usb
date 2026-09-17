@@ -100,7 +100,7 @@ KEY B: BACK
 
 ## PAIR MOUSE
 
-Body is example/dynamic. Hidden: Key B Back; Key Y Lock. The requested visible label is `KEY C: HELP`; the Waveshare HAT help face control is physically wired as Key X, so that physical control drives this action.
+Body is example/dynamic. Hidden: Key B Back; Key Y Lock. Help is driven by the physical Key X control on the Waveshare HAT.
 
 ```text
 PAIR MOUSE
@@ -111,7 +111,7 @@ FOUND 0 HID
 
 KEY A: RETRY ON ERROR
 KEY B: CANCEL
-KEY C: HELP
+KEY X: HELP
 ```
 
 `KEY B: CANCEL` has the same navigation rule as Back: it returns exactly one logical page, to `MOUSE OPTIONS`, without applying a pending action.
@@ -542,10 +542,10 @@ KEY Y: LOCK
 
 ## LEARN THE KEYS
 
-Screen identity and HOME option remain `LEARN THE KEYS`; displayed title is `PRESS TO LEAR A KEY`. This page is literal down to character placement.
+Screen identity and HOME option remain `LEARN THE KEYS`; displayed title is `PRESS TO LEARN A KEY`. This page is literal down to character placement.
 
 ```text
-PRESS TO LEAR A KEY
+PRESS TO LEARN A KEY
       JOY UP
 JOY    JOY    JOY
 LEFT  PRESS  RIGHT
