@@ -58,11 +58,17 @@ target_link_libraries(blu2usb_remap PUBLIC blu2usb_profiles)
 add_library(blu2usb_interaction STATIC src/interaction/interaction.c)
 target_include_directories(blu2usb_interaction PUBLIC include)
 
-add_library(blu2usb_ux_model STATIC src/ux_model/ux_model.c)
+add_library(blu2usb_ux_model STATIC
+    src/ux_model/ux_model.c
+    src/ux_model/profile_state.c
+)
 target_include_directories(blu2usb_ux_model PUBLIC include)
 target_link_libraries(blu2usb_ux_model PUBLIC blu2usb_interaction)
 
-add_library(blu2usb_renderer STATIC src/renderer/renderer.c)
+add_library(blu2usb_renderer STATIC
+    src/renderer/renderer.c
+    src/renderer/profile_feedback.c
+)
 target_include_directories(blu2usb_renderer PUBLIC include)
 target_link_libraries(blu2usb_renderer PUBLIC blu2usb_ux_model)
 
