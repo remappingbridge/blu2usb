@@ -11,12 +11,21 @@ Bluetooth Keyboard pairing/input is not part of G06. The USB Keyboard interface 
 ## Frozen profile contract
 
 - `PASSTHROUGH`: Left→Left, Right→Right, Middle→Middle, Forward→Forward, Backward→Backward.
-- `DEFAULT REMAP`: Left→Escape, Right→Backward, Middle→Forward, Forward→Left, Backward→Right.
-- `ESCAPE REMAP`: Left→Escape; all other buttons remain identity.
+- `DEFAULT REMAP`: Left→Forward, Right→Backward, Middle→Middle, Forward→Left, Backward→Right.
+- `ESCAPE REMAP`: Left→Escape, Right→Backward, Middle→Forward, Forward→Left, Backward→Right.
 - `CUSTOM REMAP`: each source Left/Right/Middle/Forward/Backward may target Left/Right/Middle/Backward/Forward/Escape.
 - Relative X/Y, vertical wheel and horizontal pan always pass through unchanged by button profiles.
 - Changing profile releases persistent Mouse and synthetic Keyboard ownership from the old profile before the new mapping becomes authoritative.
 - Profile persistence across Pico power cycles is not required in G06; saved-device/product persistence belongs to a later gate.
+
+## Profile feedback contract
+
+- Cyan is the general success/current-state color for applied configuration values.
+- After a successful profile apply, the yellow/static configuration text on the feedback screen becomes cyan.
+- In `MOUSE OPTIONS`, the currently active profile row is cyan.
+- Entering the already-active Passthrough, Default Remap or Escape Remap opens its feedback/applied screen directly, without an Apply hint.
+- Entering an already-active Custom Remap shows the current Custom configuration without the `KEY A: APPLY CUSTOM` hint until a Custom target is changed.
+- `KEY B` from any profile feedback screen returns to `MOUSE OPTIONS` on the first press.
 
 ## HID++ contract
 
@@ -31,17 +40,19 @@ Bluetooth Keyboard pairing/input is not part of G06. The USB Keyboard interface 
 CI must prove:
 
 1. all G02–G05 regression tests remain green;
-2. preset mappings match the frozen contract;
+2. preset mappings match the frozen contract and Default is distinct from Escape Remap;
 3. Custom draft/commit supports Escape and validates serialized profile data;
 4. Mouse→Mouse remapping produces canonical target button events;
 5. Mouse→Escape produces synthetic canonical Keyboard Escape press/release events;
 6. source-aware aggregation prevents stuck Mouse/Keyboard ownership after remap transitions;
-7. HID++ feature discovery and Forward diversion request bytes match the frozen feature/CID contract;
-8. HID++ held/released events become canonical Forward transitions only after diversion is acknowledged;
-9. unsupported HID++ transport writes fail safe to standard HOGP behavior;
-10. profiles/remap/HID++ state-machine cores stay free of Pico SDK, TinyUSB, BTstack and raw report-layout dependencies;
-11. the application contains no raw TinyUSB/BTstack/GPIO/SPI primitives and there is no forced USB re-enumeration path;
-12. Pico 2 W production cross-build produces a non-empty UF2.
+7. successful profile feedback and the active `MOUSE OPTIONS` row render cyan;
+8. an already-active profile opens feedback without an Apply hint and `KEY B` leaves feedback on the first press;
+9. HID++ feature discovery and Forward diversion request bytes match the frozen feature/CID contract;
+10. HID++ held/released events become canonical Forward transitions only after diversion is acknowledged;
+11. unsupported HID++ transport writes fail safe to standard HOGP behavior;
+12. profiles/remap/HID++ state-machine cores stay free of Pico SDK, TinyUSB, BTstack and raw report-layout dependencies;
+13. the application contains no raw TinyUSB/BTstack/GPIO/SPI primitives and there is no forced USB re-enumeration path;
+14. Pico 2 W production cross-build produces a non-empty UF2.
 
 ## Physical scenarios
 
@@ -51,33 +62,41 @@ Use the same Pico 2 W + Waveshare HAT/LCD + BLE HOGP Mouse that passed G05. A Lo
 
 Flash G06 and power-cycle. The first LCD page remains `PRESS TO LEARN A KEY`; the BLE Mouse can connect and move/click/scroll as in G05. The host continues exposing the same fixed BLU2USB Mouse + Keyboard USB identity.
 
-### G06-02 — PASSTHROUGH
+### G06-02 — PASSTHROUGH and success feedback
 
-Navigate to Mouse Options → Passthrough and apply it. Left, Right, Middle, Backward and Forward must keep their native meanings. X/Y and wheel remain unchanged.
+Navigate to Mouse Options → Passthrough. Because Passthrough is the initial profile, it must open the applied/feedback screen directly with no Apply hint. Its configuration text is cyan. Left, Right, Middle, Backward and Forward keep their native meanings. `KEY B` returns to Mouse Options on the first press, where `PASSTHROUGH` is cyan.
 
 ### G06-03 — DEFAULT REMAP exact mapping
 
 Navigate to Mouse Options → Default Remap and apply it. Validate the exact mapping:
 
-- Left generates Keyboard Escape and must not generate Mouse Left;
+- Left generates Mouse Forward;
+- Right generates Mouse Backward;
+- Middle remains Mouse Middle;
+- Forward generates Mouse Left;
+- Backward generates Mouse Right.
+
+After Apply, the feedback configuration text is cyan. `KEY B` returns to Mouse Options on the first press and `DEFAULT REMAP` is cyan. Re-entering Default Remap opens the feedback screen directly without an Apply hint.
+
+### G06-04 — ESCAPE REMAP exact mapping
+
+Apply Escape Remap and validate:
+
+- Left generates Keyboard Escape;
 - Right generates Mouse Backward;
 - Middle generates Mouse Forward;
 - Forward generates Mouse Left;
 - Backward generates Mouse Right.
 
-Use a host UI where Escape and browser Back/Forward are observable. Hold/release behavior must follow the physical button without a stuck target.
-
-### G06-04 — ESCAPE REMAP
-
-Apply Escape Remap. Left must generate Keyboard Escape. Right, Middle, Backward and Forward remain their native Mouse buttons. Pointer motion and wheel remain passthrough.
+After Apply, the feedback configuration text is cyan. `KEY B` returns on the first press and `ESCAPE REMAP` is cyan in Mouse Options. Re-entering Escape Remap opens feedback directly.
 
 ### G06-05 — Synthetic Escape press/release
 
-With a profile that maps Left to Escape, open a host menu/dialog where Escape is observable. Press and hold physical Left: the remapped Keyboard Escape ownership is held. Release Left: Escape is released. Repeated clicks must not leave the USB Keyboard in a held state.
+With Escape Remap or a Custom profile that maps a button to Escape, open a host menu/dialog where Escape is observable. Press and hold the physical mapped button: the remapped Keyboard Escape ownership is held. Release it: Escape is released. Repeated clicks must not leave the USB Keyboard in a held state.
 
 ### G06-06 — CUSTOM REMAP
 
-Open Custom Remap. Change at least two source buttons, including one mapping to `ESCAPE` and one mapping to another Mouse button, then apply Custom. Both mappings must take effect simultaneously while X/Y/wheel remain unchanged.
+Open Custom Remap. Change at least two source buttons, including one mapping to `ESCAPE` and one mapping to another Mouse button, then apply Custom. Both mappings must take effect simultaneously while X/Y/wheel remain unchanged. After Apply, the current Custom configuration is shown as successful/current in cyan and the Apply Custom hint is absent until another target is changed. Back once returns to Mouse Options, where `CUSTOM REMAP` is cyan.
 
 ### G06-07 — Profile change while a mapped control was active
 
