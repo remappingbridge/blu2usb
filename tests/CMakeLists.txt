@@ -19,6 +19,12 @@ target_link_libraries(blu2usb_test_g04_usb PRIVATE
 )
 add_test(NAME g04_fixed_usb_hid COMMAND blu2usb_test_g04_usb)
 
+add_executable(blu2usb_test_g05_hid_ownership test_g05_hid_ownership.c)
+target_link_libraries(blu2usb_test_g05_hid_ownership PRIVATE
+    blu2usb_hid_aggregator
+)
+add_test(NAME g05_canonical_hid_ownership COMMAND blu2usb_test_g05_hid_ownership)
+
 add_test(
     NAME screen_contract
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_screen_contract.py
