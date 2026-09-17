@@ -228,6 +228,8 @@ static void handle_gatt_client_event(uint8_t packet_type, uint16_t channel,
                                                        raw_len, &payload, &payload_len)) {
             disconnect_and_rescan(); break;
         }
+        const blu2usb_hid_source_t source =
+            blu2usb_hid_source_make(BLU2USB_HID_SOURCE_MOUSE, 1u);
         bool consumed = false;
         if (g_vendor_registered)
             consumed = g_vendor_backend.input(g_vendor_backend.context, source,
