@@ -8,13 +8,10 @@
 #include "blu2usb/bt_runtime/bt_runtime.h"
 #include "blu2usb/domain/hid.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #define BLU2USB_BLE_HOGP_MAX_FIELDS 48u
 #define BLU2USB_BLE_HOGP_MAX_REPORTS 16u
 #define BLU2USB_BLE_HOGP_RUNTIME_CHANNEL UINT16_C(0x0501)
+#define BLU2USB_BLE_HOGP_VENDOR_OUTPUT_MAX 32u
 
 typedef enum {
     BLU2USB_BLE_HOGP_MESSAGE_CONNECTED = 1,
@@ -55,7 +52,13 @@ typedef struct {
     bool configured;
 } blu2usb_ble_hogp_parser_t;
 
-typedef bool (*blu2usb_ble_hogp_emit_fn)(void *context, const blu2usb_canonical_mouse_event_t *event);
+typedef bool (*blu2usb_ble_hogp_emit_fn)(void *context,
+                                          const blu2usb_canonical_mouse_event_t *event);
+
+typedef struct {
+    uint8_t address_type;
+    uint8_t address[6];
+} blu2usb_ble_hogp_peer_t;
 
 typedef enum {
     BLU2USB_BLE_HOGP_EVENT_CONNECTED = 0,
@@ -65,38 +68,52 @@ typedef enum {
 
 typedef struct {
     blu2usb_ble_hogp_event_type_t type;
+    blu2usb_ble_hogp_peer_t peer;
     blu2usb_canonical_mouse_event_t mouse;
 } blu2usb_ble_hogp_event_t;
+
+typedef bool (*blu2usb_ble_hogp_vendor_input_fn)(
+    void *context, blu2usb_hid_source_t source, uint8_t report_id,
+    const uint8_t *payload, size_t payload_len,
+    blu2usb_ble_hogp_emit_fn emit, void *emit_context);
+typedef bool (*blu2usb_ble_hogp_vendor_output_fn)(
+    void *context, uint8_t *report_id, uint8_t *payload,
+    uint16_t *payload_len, uint16_t payload_capacity);
+typedef void (*blu2usb_ble_hogp_vendor_output_result_fn)(void *context, bool accepted);
+typedef bool (*blu2usb_ble_hogp_vendor_claims_button_fn)(void *context,
+                                                          blu2usb_mouse_button_t button);
+typedef void (*blu2usb_ble_hogp_vendor_session_fn)(void *context, bool connected);
+
+typedef struct {
+    void *context;
+    blu2usb_ble_hogp_vendor_input_fn input;
+    blu2usb_ble_hogp_vendor_output_fn next_output;
+    blu2usb_ble_hogp_vendor_output_result_fn output_result;
+    blu2usb_ble_hogp_vendor_claims_button_fn claims_button;
+    blu2usb_ble_hogp_vendor_session_fn session;
+} blu2usb_ble_hogp_vendor_backend_t;
 
 bool blu2usb_ble_hogp_parser_configure(blu2usb_ble_hogp_parser_t *parser,
                                         blu2usb_hid_source_t source,
                                         const uint8_t *descriptor,
                                         size_t descriptor_len);
 bool blu2usb_ble_hogp_parser_has_mouse(const blu2usb_ble_hogp_parser_t *parser);
-
-/* Accepts either canonical descriptor-sized payload or BTstack HIDS framing
- * with one duplicated Report ID byte. All other lengths are rejected. */
 bool blu2usb_ble_hogp_parser_normalize_report(const blu2usb_ble_hogp_parser_t *parser,
                                                uint8_t report_id,
                                                const uint8_t *report,
                                                size_t report_len,
                                                const uint8_t **payload,
                                                size_t *payload_len);
-
 bool blu2usb_ble_hogp_parser_parse_report(blu2usb_ble_hogp_parser_t *parser,
                                            uint8_t report_id,
                                            const uint8_t *report,
                                            size_t report_len,
                                            blu2usb_ble_hogp_emit_fn emit,
                                            void *context);
-
 bool blu2usb_ble_hogp_decode_runtime_message(const blu2usb_bt_runtime_message_t *message,
                                               blu2usb_ble_hogp_event_t *event);
-
+bool blu2usb_ble_hogp_register_vendor_backend(
+    const blu2usb_ble_hogp_vendor_backend_t *backend);
 bool blu2usb_ble_hogp_start(void);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

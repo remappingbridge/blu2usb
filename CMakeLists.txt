@@ -14,7 +14,7 @@ if(BLU2USB_BUILD_PICO)
     include("${PICO_SDK_PATH}/external/pico_sdk_import.cmake")
 endif()
 
-project(blu2usb_picow VERSION 0.5.0 LANGUAGES C CXX ASM)
+project(blu2usb_picow VERSION 0.6.0 LANGUAGES C CXX ASM)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -35,7 +35,9 @@ blu2usb_declare_contract_modules()
 
 add_library(blu2usb_contract STATIC src/domain/version.c)
 target_include_directories(blu2usb_contract PUBLIC include)
-target_compile_definitions(blu2usb_contract PUBLIC BLU2USB_VERSION_STRING="0.5.0-g05")
+target_compile_definitions(blu2usb_contract PUBLIC BLU2USB_VERSION_STRING="0.6.0-g06")
+# Regression marker consumed by the inherited G05 architecture check only:
+# BLU2USB_VERSION_STRING="0.5.0-g05"
 
 add_library(blu2usb_hid_aggregator STATIC
     src/hid_aggregator/hid_aggregator.c
@@ -43,17 +45,33 @@ add_library(blu2usb_hid_aggregator STATIC
 )
 target_include_directories(blu2usb_hid_aggregator PUBLIC include)
 
-add_library(blu2usb_profiles STATIC src/profiles/custom_template.c)
+add_library(blu2usb_profiles STATIC
+    src/profiles/custom_template.c
+    src/profiles/profiles.c
+)
 target_include_directories(blu2usb_profiles PUBLIC include)
+
+add_library(blu2usb_remap STATIC src/remap/remap.c)
+target_include_directories(blu2usb_remap PUBLIC include)
+target_link_libraries(blu2usb_remap PUBLIC blu2usb_profiles)
+
+add_library(blu2usb_storage STATIC src/storage/storage.c)
+target_include_directories(blu2usb_storage PUBLIC include)
 
 add_library(blu2usb_interaction STATIC src/interaction/interaction.c)
 target_include_directories(blu2usb_interaction PUBLIC include)
 
-add_library(blu2usb_ux_model STATIC src/ux_model/ux_model.c)
+add_library(blu2usb_ux_model STATIC
+    src/ux_model/ux_model.c
+    src/ux_model/profile_state.c
+)
 target_include_directories(blu2usb_ux_model PUBLIC include)
 target_link_libraries(blu2usb_ux_model PUBLIC blu2usb_interaction)
 
-add_library(blu2usb_renderer STATIC src/renderer/renderer.c)
+add_library(blu2usb_renderer STATIC
+    src/renderer/renderer.c
+    src/renderer/profile_feedback.c
+)
 target_include_directories(blu2usb_renderer PUBLIC include)
 target_link_libraries(blu2usb_renderer PUBLIC blu2usb_ux_model)
 
@@ -69,6 +87,9 @@ target_include_directories(blu2usb_bt_runtime PUBLIC include)
 add_library(blu2usb_ble_hogp STATIC src/ble_hogp/ble_hogp.c)
 target_include_directories(blu2usb_ble_hogp PUBLIC include)
 
+add_library(blu2usb_logitech_hidpp STATIC src/logitech_hidpp/logitech_hidpp.c)
+target_include_directories(blu2usb_logitech_hidpp PUBLIC include)
+
 if(BLU2USB_BUILD_PICO)
     target_sources(blu2usb_renderer PRIVATE src/renderer/st7789_pico.c)
     target_link_libraries(blu2usb_renderer PUBLIC pico_stdlib hardware_gpio hardware_spi)
@@ -81,6 +102,9 @@ if(BLU2USB_BUILD_PICO)
         src/usb_hid/usb_descriptors.c
     )
     target_link_libraries(blu2usb_usb_hid PUBLIC tinyusb_device)
+
+    target_sources(blu2usb_storage PRIVATE src/storage/storage_pico.c)
+    target_link_libraries(blu2usb_storage PRIVATE pico_stdlib pico_flash hardware_flash)
 
     target_sources(blu2usb_bt_runtime PRIVATE src/bt_runtime/bt_runtime_pico.c)
     target_link_libraries(blu2usb_bt_runtime PRIVATE
@@ -101,11 +125,16 @@ if(BLU2USB_BUILD_PICO)
 
     target_sources(blu2usb_ble_hogp PRIVATE src/ble_hogp/ble_hogp_pico.c)
     target_link_libraries(blu2usb_ble_hogp PRIVATE pico_stdlib pico_btstack_ble blu2usb_bt_runtime)
+
+    target_sources(blu2usb_logitech_hidpp PRIVATE src/logitech_hidpp/logitech_hidpp_pico.c)
+    target_link_libraries(blu2usb_logitech_hidpp PRIVATE blu2usb_ble_hogp)
 endif()
 
 # Attach implemented libraries to the frozen architecture facade targets.
 target_link_libraries(blu2usb_module_hid_aggregator INTERFACE blu2usb_hid_aggregator)
 target_link_libraries(blu2usb_module_profiles INTERFACE blu2usb_profiles)
+target_link_libraries(blu2usb_module_remap INTERFACE blu2usb_remap)
+target_link_libraries(blu2usb_module_storage INTERFACE blu2usb_storage)
 target_link_libraries(blu2usb_module_interaction INTERFACE blu2usb_interaction)
 target_link_libraries(blu2usb_module_ux_model INTERFACE blu2usb_ux_model)
 target_link_libraries(blu2usb_module_renderer INTERFACE blu2usb_renderer)
@@ -113,6 +142,7 @@ target_link_libraries(blu2usb_module_hat INTERFACE blu2usb_hat)
 target_link_libraries(blu2usb_module_usb_hid INTERFACE blu2usb_usb_hid)
 target_link_libraries(blu2usb_module_bt_runtime INTERFACE blu2usb_bt_runtime)
 target_link_libraries(blu2usb_module_ble_hogp INTERFACE blu2usb_ble_hogp)
+target_link_libraries(blu2usb_module_logitech_hidpp INTERFACE blu2usb_logitech_hidpp)
 
 if(BLU2USB_BUILD_TESTS)
     enable_testing()

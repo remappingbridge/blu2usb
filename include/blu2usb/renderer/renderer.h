@@ -65,6 +65,7 @@ void blu2usb_ui_frame_reset(blu2usb_ui_frame_t *frame, bool learn_background, ui
 bool blu2usb_ui_frame_set_text(blu2usb_ui_frame_t *frame, uint8_t row, uint8_t column, const char *text, blu2usb_ui_tone_t tone);
 bool blu2usb_ui_frame_set_tone_span(blu2usb_ui_frame_t *frame, uint8_t row, uint8_t column, uint8_t length, blu2usb_ui_tone_t tone);
 void blu2usb_ui_project(const blu2usb_ux_model_t *ux, blu2usb_ui_frame_t *frame);
+void blu2usb_ui_enforce_applied_visual_contract(const blu2usb_ux_model_t *ux, blu2usb_ui_frame_t *frame);
 uint16_t blu2usb_renderer_tone_rgb565(blu2usb_ui_tone_t tone);
 uint16_t blu2usb_renderer_background_rgb565(const blu2usb_ui_frame_t *frame, uint8_t row);
 uint16_t blu2usb_renderer_separator_boundary_y(const blu2usb_ui_frame_t *frame);
