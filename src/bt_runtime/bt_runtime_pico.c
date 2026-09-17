@@ -9,13 +9,12 @@
 /* PICO-08 envelope (8fbb36f / 208a487), explicit two-adapter composition.
  * Core0 owns USB/HAT. Core1 owns exactly one CYW43/BTstack instance. */
 static uint32_t g_core1_stack[8192 / sizeof(uint32_t)] __attribute__((aligned(16)));
-static blu2usb_bt_runtime_session_setup_fn g_ble_setup, g_companion_setup;
+static blu2usb_bt_runtime_session_setup_fn g_ble_setup, g_companion_setup, g_transport_prepare;
 static bool g_started;
 
 static void bluetooth_core(void)
 {
     if (!flash_safe_execute_core_init()) for (;;) tight_loop_contents();
-    sleep_ms(500);
     if (cyw43_arch_init() != 0) for (;;) tight_loop_contents();
     async_context_acquire_lock_blocking(cyw43_arch_async_context());
     l2cap_init();
@@ -25,6 +24,7 @@ static void bluetooth_core(void)
     sm_set_authentication_requirements(SM_AUTHREQ_SECURE_CONNECTION | SM_AUTHREQ_BONDING);
     gatt_client_init();
     att_server_init(profile_data, NULL, NULL);
+    if (g_transport_prepare) g_transport_prepare();
     if (g_companion_setup) g_companion_setup();
     g_ble_setup();
     hci_power_control(HCI_POWER_ON);
@@ -34,12 +34,14 @@ static void bluetooth_core(void)
 }
 
 bool blu2usb_bt_runtime_start(blu2usb_bt_runtime_session_setup_fn session_setup,
-                             blu2usb_bt_runtime_session_setup_fn companion_setup)
+                             blu2usb_bt_runtime_session_setup_fn companion_setup,
+                             blu2usb_bt_runtime_session_setup_fn transport_prepare)
 {
     if (g_started || session_setup == NULL) return false;
     blu2usb_bt_runtime_reset();
     g_ble_setup = session_setup;
     g_companion_setup = companion_setup;
+    g_transport_prepare = transport_prepare;
     if (!flash_safe_execute_core_init()) return false;
     g_started = true;
     multicore_launch_core1_with_stack(bluetooth_core, g_core1_stack, sizeof(g_core1_stack));

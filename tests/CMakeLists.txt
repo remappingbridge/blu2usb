@@ -70,8 +70,9 @@ add_test(
 )
 
 add_executable(blu2usb_test_g07_probe test_g07_probe.c
-    ../src/classic_hid/classic_probe_pico.c)
-target_include_directories(blu2usb_test_g07_probe PRIVATE fakes ../include)
+    ../src/classic_hid/classic_probe_pico.c
+    ../src/classic_hid/pico08/classic_keyboard.c)
+target_include_directories(blu2usb_test_g07_probe PRIVATE fakes ../include ../src/classic_hid/pico08_compat)
 target_link_libraries(blu2usb_test_g07_probe PRIVATE blu2usb_ux_model)
 target_compile_options(blu2usb_test_g07_probe PRIVATE -Wall -Wextra -Werror)
 add_test(NAME g07_rebuild_connection_probe COMMAND blu2usb_test_g07_probe)
@@ -81,3 +82,6 @@ add_executable(blu2usb_test_g07_bootstrap test_g07_bootstrap.c
 target_include_directories(blu2usb_test_g07_bootstrap PRIVATE fakes ../include)
 target_compile_options(blu2usb_test_g07_bootstrap PRIVATE -Wall -Wextra -Werror)
 add_test(NAME g07_rebuild_bootstrap_order COMMAND blu2usb_test_g07_bootstrap)
+
+add_test(NAME g07_pico08_source_identity
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/check_pico08_source.py)

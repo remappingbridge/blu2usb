@@ -7,6 +7,7 @@
 #include "pico/stdlib.h"
 #include "blu2usb/ble_hogp/ble_hogp.h"
 #include "blu2usb/bt_runtime/bt_runtime.h"
+#include "blu2usb/bt_runtime/boot_gate.h"
 #include "blu2usb/domain/version.h"
 #include "blu2usb/classic_hid/classic_probe.h"
 #include "blu2usb/hat/hat.h"
@@ -41,18 +42,19 @@ static void project_connection_probe(const blu2usb_ux_model_t *ux, blu2usb_ui_fr
     const char *label = state.phase <= BLU2USB_PROBE_ERROR ? labels[state.phase] : "CONNECTION ERROR";
     (void)blu2usb_ui_frame_set_text(frame, 1, 0, label,
         state.phase == BLU2USB_PROBE_READY ? BLU2USB_UI_TONE_CURRENT : BLU2USB_UI_TONE_STATIC);
+    (void)blu2usb_ui_frame_set_text(frame, 4, 0, "PICO-08 A2", BLU2USB_UI_TONE_STATIC);
     char line[22];
     if (state.phase == BLU2USB_PROBE_PIN) {
         (void)snprintf(line, sizeof(line), "PIN: %0*u", state.pin_digits == 4 ? 4 : 6, (unsigned)state.pin);
         (void)blu2usb_ui_frame_set_text(frame, 2, 0, line, BLU2USB_UI_TONE_CURRENT);
         (void)blu2usb_ui_frame_set_text(frame, 3, 0, "THEN PRESS ENTER", BLU2USB_UI_TONE_STATIC);
     } else if (state.phase == BLU2USB_PROBE_ERROR) {
-        (void)snprintf(line, sizeof(line), "ERROR %02X", state.error);
+        (void)snprintf(line, sizeof(line), "%s", state.message);
         (void)blu2usb_ui_frame_set_text(frame, 2, 0, line, BLU2USB_UI_TONE_STATIC);
     } else if (state.phase == BLU2USB_PROBE_READY) {
         (void)blu2usb_ui_frame_set_text(frame, 2, 0, "CONNECTION CONFIRMED", BLU2USB_UI_TONE_CURRENT);
     } else {
-        (void)snprintf(line, sizeof(line), "FOUND %u DEVICES", state.found);
+        (void)snprintf(line, sizeof(line), "INQUIRY RESULTS %u", state.found);
         (void)blu2usb_ui_frame_set_text(frame, 2, 0, line, BLU2USB_UI_TONE_STATIC);
     }
 }
@@ -351,16 +353,21 @@ int main(void)
     if (!blu2usb_st7789_pico_init(&display)) {
         for (;;) { blu2usb_usb_hid_pico_task(); tight_loop_contents(); }
     }
-    (void)render_state(&display, &ux);
+    const bool lcd_ready = render_state(&display, &ux);
     blu2usb_st7789_pico_set_backlight(true);
+    blu2usb_bt_boot_gate_t boot_gate = {0};
+    (void)blu2usb_bt_boot_due(&boot_gate, lcd_ready, to_ms_since_boot(get_absolute_time()));
+    blu2usb_classic_probe_shared_init();
 
     (void)blu2usb_logitech_hidpp_pico_start();
     blu2usb_logitech_hidpp_pico_set_forward_fix(
         blu2usb_profiles_requires_forward_held_fix(&boot_profile));
-    (void)blu2usb_bt_runtime_start(blu2usb_ble_hogp_session_setup, blu2usb_classic_probe_setup);
     blu2usb_classic_probe_snapshot_t previous_probe = blu2usb_classic_probe_snapshot();
 
     for (;;) {
+        if (blu2usb_bt_boot_due(&boot_gate, lcd_ready, to_ms_since_boot(get_absolute_time())))
+            (void)blu2usb_bt_runtime_start(blu2usb_ble_hogp_session_setup,
+                blu2usb_classic_probe_setup, blu2usb_ble_hogp_session_prepare);
         blu2usb_usb_hid_pico_task();
         bool ble_ui_changed =
             service_ble_messages(&ux, &aggregator, &remap,
@@ -368,7 +375,8 @@ int main(void)
         const blu2usb_classic_probe_snapshot_t probe = blu2usb_classic_probe_snapshot();
         if (probe.phase != previous_probe.phase || probe.error != previous_probe.error ||
             probe.found != previous_probe.found || probe.pin != previous_probe.pin ||
-            probe.pin_digits != previous_probe.pin_digits) {
+            probe.pin_digits != previous_probe.pin_digits ||
+            strcmp(probe.message, previous_probe.message) != 0) {
             previous_probe = probe;
             if (ux.screen == BLU2USB_SCREEN_PAIR_KEYBOARD) ble_ui_changed = true;
         }

@@ -25,9 +25,11 @@ typedef struct {
     uint16_t found;
     uint32_t pin;
     uint8_t pin_digits;
+    char message[22];
 } blu2usb_classic_probe_snapshot_t;
 
 /* Setup is called once by the shared bootstrap before HCI power-on. */
+void blu2usb_classic_probe_shared_init(void);
 void blu2usb_classic_probe_setup(void);
 void blu2usb_classic_probe_pair(void);
 void blu2usb_classic_probe_cancel(void);

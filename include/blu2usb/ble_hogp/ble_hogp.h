@@ -115,6 +115,7 @@ bool blu2usb_ble_hogp_decode_runtime_message(const blu2usb_bt_runtime_message_t 
 bool blu2usb_ble_hogp_register_vendor_backend(
     const blu2usb_ble_hogp_vendor_backend_t *backend);
 bool blu2usb_ble_hogp_start(void);
+void blu2usb_ble_hogp_session_prepare(void);
 void blu2usb_ble_hogp_session_setup(void);
 
 #endif

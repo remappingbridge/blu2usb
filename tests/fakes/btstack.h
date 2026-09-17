@@ -144,6 +144,7 @@ static inline uint16_t hid_subevent_report_get_report_len(const uint8_t * event)
 }
 
 static inline void hid_subevent_incoming_connection_get_address(const uint8_t *event, bd_addr_t address) { reverse_bytes(&event[5],address,6); }
+const char *bd_addr_to_str(const bd_addr_t);
 uint32_t btstack_run_loop_get_time_ms(void);
 void btstack_run_loop_set_timer_handler(btstack_timer_source_t*,void (*)(btstack_timer_source_t*));
 void btstack_run_loop_set_timer(btstack_timer_source_t*,uint32_t);

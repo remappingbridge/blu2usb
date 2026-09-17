@@ -14,7 +14,7 @@ for name in ('hci.c', 'l2cap.c', 'btstack_memory.c', 'btstack_cyw43.c', 'hid_hos
     assert len(entries) == 1, (name, len(entries))
     command = entries[0]['command']
     assert '-DENABLE_BLE=1' in command and '-DENABLE_CLASSIC=1' in command, name
-for name in ('bt_runtime_pico.c', 'ble_hogp_pico.c', 'classic_probe_pico.c'):
+for name in ('bt_runtime_pico.c', 'ble_hogp_pico.c', 'classic_probe_pico.c', 'classic_keyboard.c'):
     entries = [c for c in commands if pathlib.Path(c['file']).name == name]
     assert len(entries) == 1, name
     assert all(flag in entries[0]['command'] for flag in ('-DENABLE_BLE=1','-DENABLE_CLASSIC=1')), name
@@ -27,14 +27,19 @@ elf = build / 'blu2usb_picow.elf'
 nm = subprocess.check_output(['arm-none-eabi-nm', '--defined-only', str(elf)], text=True)
 symbols = collections.Counter(line.split()[-1] for line in nm.splitlines() if line.split())
 for name in ('hci_init','l2cap_init','btstack_cyw43_init','hid_host_init',
-             'blu2usb_classic_probe_setup','blu2usb_ble_hogp_session_setup',
+             'blu2usb_classic_probe_setup','classic_keyboard_core1_init',
+             'classic_keyboard_request_pair','blu2usb_ble_hogp_session_setup',
+             'blu2usb_ble_hogp_session_prepare',
              'flash_safe_execute','multicore_lockout_victim_init'):
     assert symbols[name] == 1, (name, symbols[name])
 uf2 = build / 'blu2usb_picow.uf2'
 data = uf2.read_bytes()
 assert data and len(data) % 512 == 0
+subprocess.check_call([sys.executable, str(root / 'tests/check_pico08_source.py')])
+provenance = json.loads((root / 'src/classic_hid/pico08/provenance.json').read_text())
 sha = subprocess.check_output(['git','rev-parse','HEAD'],cwd=root,text=True).strip()
-manifest = dict(stage='G07 experiment A - connection only; physical acceptance pending',
+manifest = dict(stage='G07 A2 - original PICO-08 host; connection only; physical acceptance pending',
+                pico08=provenance,
                 commit=sha, board='pico2_w', mcu='RP2350', pico_sdk='2.2.0',
                 btstack='501e6d2b86e6c92bfb9c390bcf55709938e25ac1',
                 compiler=subprocess.check_output(['arm-none-eabi-gcc','--version'],text=True).splitlines()[0],

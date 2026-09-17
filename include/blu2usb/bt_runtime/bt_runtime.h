@@ -26,9 +26,10 @@ bool blu2usb_bt_runtime_poll(blu2usb_bt_runtime_message_t *message);
 bool blu2usb_bt_runtime_take_overflow(void);
 
 /* Explicit composition: both setups execute once before HCI power-on on Core1.
- * The optional companion runs first, matching PICO-08 Classic registration. */
+ * Preparation (HIDS) precedes Classic, then BLE handler registration. */
 bool blu2usb_bt_runtime_start(blu2usb_bt_runtime_session_setup_fn session_setup,
-                             blu2usb_bt_runtime_session_setup_fn companion_setup);
+                             blu2usb_bt_runtime_session_setup_fn companion_setup,
+                             blu2usb_bt_runtime_session_setup_fn transport_prepare);
 
 #ifdef __cplusplus
 }

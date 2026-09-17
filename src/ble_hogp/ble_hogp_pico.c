@@ -418,6 +418,11 @@ static void sm_packet_handler(uint8_t packet_type, uint16_t channel,
     if (ready && g_state == BLE_HOGP_STATE_SECURING) connect_hid_service();
 }
 
+void blu2usb_ble_hogp_session_prepare(void)
+{
+    hids_client_init(g_descriptor_storage, sizeof(g_descriptor_storage));
+}
+
 void blu2usb_ble_hogp_session_setup(void)
 {
     memset(&g_parser, 0, sizeof(g_parser));
@@ -431,7 +436,6 @@ void blu2usb_ble_hogp_session_setup(void)
     g_reconnect_timer_active = false;
     g_reconnect_cancel_pending = false;
     g_reconnect_after_disconnect = false;
-    hids_client_init(g_descriptor_storage, sizeof(g_descriptor_storage));
     g_hci_registration.callback = &hci_packet_handler;
     hci_add_event_handler(&g_hci_registration);
     g_sm_registration.callback = &sm_packet_handler;
@@ -444,5 +448,5 @@ void blu2usb_ble_hogp_session_setup(void)
 
 bool blu2usb_ble_hogp_start(void)
 {
-    return blu2usb_bt_runtime_start(blu2usb_ble_hogp_session_setup, NULL);
+    return blu2usb_bt_runtime_start(blu2usb_ble_hogp_session_setup, NULL, blu2usb_ble_hogp_session_prepare);
 }

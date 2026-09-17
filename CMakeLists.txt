@@ -147,7 +147,10 @@ if(BLU2USB_BUILD_PICO)
     target_sources(blu2usb_ble_hogp PRIVATE src/ble_hogp/ble_hogp_pico.c)
     target_link_libraries(blu2usb_ble_hogp PRIVATE pico_stdlib blu2usb_bt_runtime)
 
-    add_library(blu2usb_classic_probe STATIC src/classic_hid/classic_probe_pico.c)
+    add_library(blu2usb_classic_probe STATIC
+        src/classic_hid/classic_probe_pico.c
+        src/classic_hid/pico08/classic_keyboard.c)
+    target_include_directories(blu2usb_classic_probe PRIVATE src/classic_hid/pico08_compat)
     target_include_directories(blu2usb_classic_probe PUBLIC include)
     target_link_libraries(blu2usb_classic_probe PRIVATE pico_stdlib blu2usb_bt_runtime)
     target_link_libraries(blu2usb_module_classic_hid INTERFACE blu2usb_classic_probe)
