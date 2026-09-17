@@ -1,49 +1,76 @@
-# BLU2USB-G05 validation — canonical HID and source ownership
+# BLU2USB-G05 validation — BLE HOGP Mouse passthrough
 
 ## Objective
 
-Introduce the transport-independent canonical HID boundary and source-aware ownership/refcount aggregation required before Bluetooth adapters are implemented in G06+.
+Implement one live BLE HOGP Mouse path on Pico 2 W while preserving the fixed USB Mouse + Keyboard identity from G04 and the accepted LCD/HAT interaction behavior from G03.
 
-The G04 fixed USB identity, LCD layout and HAT interaction behavior remain unchanged.
+Remote HID report layouts remain confined to the BLE adapter. The application receives only firmware-owned canonical Mouse events, which pass through source-aware ownership aggregation before fixed USB Mouse reports are submitted.
 
-## Canonical HID contract
+## Runtime contract
 
-- A source identity is `{kind, instance}` and distinguishes Mouse, Keyboard, Composite and Synthetic Remap output.
-- Mouse canonical events are button, relative movement and wheel/pan.
-- Keyboard canonical events are logical key and modifier press/release.
-- Logical keyboard keys use USB HID Keyboard/Keypad Usage IDs only as stable internal key identities; transport report structure never enters the domain API.
-- Up to 16 simultaneously tracked persistent ownership sources are supported.
+- CYW43/BTstack is initialized on core 0 and serviced with `pico_cyw43_arch_threadsafe_background`; no dedicated Core1 Bluetooth owner is used.
+- BLE scanning runs without blocking USB servicing or HAT/UI input.
+- The Mouse path searches BLE advertisements exposing the HID service and rejects explicit non-Mouse HID appearances.
+- Security uses bonding/Secure Connections with Just Works confirmation where applicable.
+- HIDS Client uses Report Protocol and obtains the peer Report Map before accepting the device as a Mouse.
+- A candidate whose Report Map does not contain a Mouse Application collection is rejected and scanning resumes.
+- The parser recognizes Mouse buttons, relative X/Y, vertical wheel and Consumer AC Pan horizontal wheel.
+- BTstack/HIDS reports are accepted either in canonical descriptor-sized form or with exactly one duplicated Report ID byte. Any incompatible framing is rejected rather than interpreted with shifted fields.
+- Connection, security, HIDS setup and report-parse failures disconnect/rescan instead of trapping the main loop.
+- Disconnect or runtime-queue overflow releases persistent ownership for the BLE Mouse source so a host button cannot remain stuck.
+- Relative motion is transmitted to USB in bounded `int8` chunks and consumed only after TinyUSB accepts that report.
+- Bluetooth state never changes the G04 USB descriptor and never calls forced USB disconnect/reconnect.
 
-## Ownership contract
+## Canonical ownership carried into G05
 
-- Persistent Mouse buttons, Keyboard keys and modifiers are owned per source.
-- Aggregate output remains pressed while at least one source owns the logical control.
-- Duplicate press/release from the same source is idempotent.
-- Releasing/disconnecting one source removes only that source's persistent ownership.
-- Synthetic Remap Keyboard ownership can overlap physical Keyboard ownership without causing an early release.
-- Relative Mouse movement and wheel input are transient, accumulate across valid sources and are consumed separately from persistent ownership.
-- Relative-only events do not consume persistent ownership slots.
+The canonical HID foundation expected before this transport gate is materialized here as well:
 
-## Automated scenarios
+- source identities distinguish Mouse, Keyboard, Composite and Synthetic Remap;
+- persistent Mouse buttons, Keyboard keys and modifiers are owned per source;
+- aggregate state stays held until the last owner releases;
+- duplicate press/release is idempotent;
+- relative motion/wheel remains transient;
+- up to 16 persistent ownership sources are tracked.
 
-1. **G05-A01 — Source validation:** valid canonical source kinds are accepted; invalid/unknown kinds are rejected.
-2. **G05-A02 — Shared Mouse ownership:** Mouse and Composite hold Left simultaneously; releasing either source leaves Left held until both release.
-3. **G05-A03 — Mouse idempotence:** duplicate press/release from one source does not double-count or underflow ownership references.
-4. **G05-A04 — Shared Keyboard key:** Keyboard and Composite hold the same key; source-selective release preserves the remaining owner.
-5. **G05-A05 — Shared modifier:** Keyboard and Composite hold Left Shift; source-selective release preserves the remaining owner.
-6. **G05-A06 — Disconnect isolation:** releasing one Mouse source clears only its unique buttons and preserves controls shared with another source.
-7. **G05-A07 — Synthetic coexistence:** Synthetic Remap and physical Keyboard can hold Escape simultaneously; removing synthetic ownership does not release the physical key.
-8. **G05-A08 — Relative aggregation:** movement and wheel deltas from multiple sources sum correctly, survive snapshot and are cleared only by take-output.
-9. **G05-A09 — Source capacity:** all 16 persistent ownership slots can be used; a 17th persistent source is rejected while full.
-10. **G05-A10 — Relative events while full:** a relative-only Mouse event still succeeds when all persistent ownership slots are occupied.
-11. **G05-A11 — Slot reuse:** after one source is released, the freed slot can be reused by a new source.
-12. **G05-A12 — Architecture boundary:** canonical HID and aggregator contain no BTstack, TinyUSB, Pico SDK/CYW43, GPIO/SPI, HID-host or transport report-layout dependencies.
-13. **G05-A13 — Regression build:** all G01-G04 host tests remain green and Pico 2 W G05 still produces a non-empty production UF2.
+## Automated acceptance
 
-## Physical validation
+CI must prove at least:
 
-None required for G05. This gate introduces no new LCD, HAT, USB identity or end-user runtime behavior. The target Pico 2 W firmware is still cross-built as regression evidence, but flashing it is not an acceptance requirement for this gate.
+1. canonical source validation and per-source ownership/refcount semantics;
+2. shared Mouse/Keyboard/modifier ownership and source-selective disconnect release;
+3. synthetic Keyboard ownership can coexist with physical Keyboard ownership;
+4. relative accumulation, bounded partial consumption and ownership-slot reuse;
+5. a composite HID Report Map yields only Mouse events from its Mouse report while its Keyboard report is ignored by the Mouse adapter;
+6. Left/Forward button transitions, signed X/Y, wheel and horizontal pan decode correctly;
+7. repeated held reports do not create duplicate button ownership transitions;
+8. descriptor-sized and duplicated-Report-ID HIDS framing normalize to the same canonical payload;
+9. malformed/truncated framing is rejected;
+10. a Keyboard-only HID Report Map is rejected as a Mouse candidate;
+11. the bounded Bluetooth runtime queue detects overflow;
+12. canonical HID modules remain free of BTstack, TinyUSB, Pico SDK and remote report-layout dependencies;
+13. BTstack/CYW43 stays inside the approved adapter/runtime modules and the application contains no raw transport/HAL primitives;
+14. the G05 build uses `pico_cyw43_arch_threadsafe_background` and contains no Core1 launch path;
+15. no forced TinyUSB reconnect path exists and the fixed two-HID USB descriptor from G04 remains unchanged;
+16. all prior G02-G04 host regressions pass;
+17. Pico 2 W production cross-build produces a non-empty UF2.
+
+## Physical scenarios
+
+Use the Pico 2 W, Waveshare HAT/LCD, a BLE HOGP Mouse and the normal graphical host OS. No serial terminal is required.
+
+1. **G05-01 — Boot and G04 regression.** Flash G05 and power-cycle. `PRESS TO LEARN A KEY` remains the first LCD page, the HAT remains usable, and the host still exposes the fixed BLU2USB Mouse + Keyboard USB functions before any Bluetooth peer connects.
+2. **G05-02 — BLE Mouse discovery/pair.** Put one BLE HOGP Mouse into pairing/discoverable mode after boot. The firmware should discover, secure and accept it automatically. After pairing, moving the physical Mouse must move the host pointer through the BLU2USB USB Mouse function.
+3. **G05-03 — X/Y motion and no ghost movement.** Move the BLE Mouse left, right, up, down and diagonally. Direction must be correct and the host pointer must stop when the physical Mouse stops; no persistent drift or one-byte Report-ID shift is allowed.
+4. **G05-04 — Left/Right/Middle hold and drag.** Test Left, Right and Middle as click/release. Then hold Left while moving the Mouse and perform a drag. Each button must remain held for the complete physical hold and release immediately when the physical button is released.
+5. **G05-05 — Wheel and horizontal pan.** Test vertical wheel. If the test Mouse exposes standard HID horizontal pan, test it too. Unsupported horizontal pan on the physical Mouse is not a failure.
+6. **G05-06 — Standard Back/Forward buttons.** If the Mouse exposes Back/Forward as ordinary HID buttons, verify both press/release paths. A vendor-specific Logitech Forward behavior that requires HID++ is outside this gate and is handled in the later HID++ gate.
+7. **G05-07 — Disconnect while held.** Hold a Mouse button, then power off/disconnect the BLE Mouse before releasing it. The host must not remain with that button stuck. The firmware must return to scanning without freezing USB or the UI.
+8. **G05-08 — Reconnection/rescan usability.** After a disconnect, put the same Mouse back into an advertising/connectable state. The runtime must remain usable and resume a valid Mouse connection without requiring a Pico reset. Product-level preferred-device persistence is not required in G05.
+9. **G05-09 — HAT responsiveness under Bluetooth activity.** During scanning, pairing, connection and after disconnect, exercise Joy Up/Down/Press and normal Back navigation. HAT actions must remain responsive and release-triggered; Bluetooth work must not visibly freeze the LCD/UI.
+10. **G05-10 — Stable USB identity throughout Bluetooth state changes.** Observe the host while the BLE Mouse connects, disconnects and reconnects. The BLU2USB USB device must remain the same fixed Mouse + Keyboard identity; there must be no USB disappearance/re-enumeration caused by Bluetooth state.
+11. **G05-11 — Lock does not stop Mouse forwarding.** With the BLE Mouse connected, lock the LCD with Key Y. Move/click the BLE Mouse while the display is locked. USB Mouse forwarding must continue. Unlock with one complete HAT interaction and confirm that interaction is consumed exactly as in earlier gates.
+12. **G05-12 — Concurrent UI + Mouse stress.** While continuously moving the BLE Mouse and occasionally scrolling/clicking, navigate several LCD pages. Pointer input and HAT/UI behavior must remain responsive, with no stuck button, ghost motion or firmware freeze.
 
 ## Gate close
 
-G05 is accepted when all automated scenarios pass on the final G05 head and the production Pico 2 W UF2 is generated. Do not merge automatically.
+Do not close BLU2USB-G05 until automated CI is green on the final head and all applicable physical scenarios G05-01 through G05-12 pass on the target Pico 2 W. Do not merge automatically.
