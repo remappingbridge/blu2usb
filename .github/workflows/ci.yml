@@ -31,7 +31,7 @@ jobs:
       - name: Run host and architecture tests
         run: ctest --test-dir build-host --output-on-failure
 
-  pico2-w-g01:
+  pico2-w-production:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
@@ -60,7 +60,7 @@ jobs:
           git -C "${RUNNER_TEMP}/pico-sdk" submodule update --init --depth 1
           test "$(git -C "${RUNNER_TEMP}/pico-sdk" describe --tags --exact-match)" = "${PICO_SDK_VERSION}"
 
-      - name: Configure Pico 2 W production scaffold
+      - name: Configure Pico 2 W production firmware
         shell: bash
         run: |
           set -euo pipefail
@@ -71,7 +71,7 @@ jobs:
             -DPICO_BOARD=pico2_w \
             -DCMAKE_BUILD_TYPE=Release
 
-      - name: Build Pico 2 W production scaffold
+      - name: Build Pico 2 W production firmware
         run: cmake --build build-pico --parallel
 
       - name: Verify production UF2
@@ -80,9 +80,9 @@ jobs:
           test ! -e build-pico/blu2usb_picow_debug.uf2
           sha256sum build-pico/blu2usb_picow.uf2
 
-      - name: Upload G01 production UF2
+      - name: Upload production UF2
         uses: actions/upload-artifact@v4
         with:
-          name: blu2usb-picow-g01-pico2w
+          name: blu2usb-picow-production-pico2w
           path: build-pico/blu2usb_picow.uf2
           if-no-files-found: error

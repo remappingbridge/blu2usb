@@ -8,7 +8,7 @@
 - [x] G02 Implement option wrap, pagination wrap, Help and any-control unlock semantics
 - [x] G02 Validate every literal 9x21 screen and Learn The Keys character positions
 - [x] G02 Implement offline CustomTemplate editor model with ESCAPE target
-- [ ] G03 Implement Waveshare Pico-LCD-1.3/ST7789 renderer and HAT adapter
+- [x] G03 Implement Waveshare Pico-LCD-1.3/ST7789 renderer and HAT adapter
 - [ ] G03 Physically validate colors, Learn The Keys, lock and any-control unlock
 - [ ] G04 Implement fixed USB Mouse + Keyboard identity from boot
 - [ ] G04 Implement canonical HID source ownership/refcount aggregator
