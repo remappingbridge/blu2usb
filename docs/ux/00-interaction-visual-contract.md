@@ -1,135 +1,92 @@
 # Interaction and visual contract
 
-## Grid
+## Grid and retained pixel relocation
 
-Every screen uses a fixed monospaced semantic grid:
+Every screen uses the fixed 9x21 semantic grid. The physically accepted pixel placement from the earlier Waveshare gate is retained for every new screen, regardless of wording changes:
 
-- 9 rows;
-- 21 characters maximum per row;
-- title on row 1;
-- main body below the title;
-- hint region at the bottom;
-- standard screens preserve an empty semantic separator between body and hints where shown by the canonical layout.
+- LCD: 240x240;
+- glyph source: 5x7, scale 2;
+- glyph box: 10x14 pixels;
+- first cell origin: x=7, y=8;
+- horizontal character advance: 11 pixels;
+- vertical row advance: 27 pixels;
+- cell `(row,column)` is rendered at `x = 7 + column*11`, `y = 8 + row*27`;
+- standard screens split black main content from dark-magenta hints at the midpoint of the empty semantic separator row immediately above the first visible hint;
+- wording changes never change these pixel coordinates or the relocation rule.
 
-Exact layouts are defined in `01-screen-layouts.md`.
+Every canonical screen has exactly 9 rows and at most 21 characters per row. Exact layouts are in `01-screen-layouts.md`.
 
-## Visual regions
+## Visual regions and colors
 
-`LEARN THE KEYS` is a special full-screen dark-magenta page.
-
-Every other screen uses:
-
-- main region: black;
-- hint region: dark magenta.
-
-## Colors
+`LEARN THE KEYS` / displayed title `PRESS TO LEAR A KEY` uses a full dark-magenta background. Every other screen uses black main content and dark-magenta hint content.
 
 Semantic colors are frozen:
 
 - title: magenta;
-- static/example main-body text without indentation: **light desaturated yellow / off-white yellow**;
+- static/example main-body text without indentation: light desaturated yellow / off-white yellow;
 - resting actionable text and ordinary option text: light gray;
-- selected option or pressed actionable text: white;
+- selected option or pressed visible actionable text: white;
 - current/applied/success/connected active state: cyan.
 
-Cyan is a main-body state color, not a hint color.
+Option-list items have exactly one leading space. No `>` selector is used. Visual precedence is pressed, selected, current, actionable, static.
 
-Text rendered in the off-white yellow has no leading indentation.
-
-Option-list items always use exactly one leading space. No `>` selection marker is used.
-
-Visual precedence:
-
-1. pressed -> white;
-2. selected -> white;
-3. current/applied/connected -> cyan;
-4. actionable -> light gray;
-5. static/example -> off-white yellow.
-
-For `DEVICE DETAILS`, an active device keeps the device name and dynamic values after `TYPE:`, `STATUS:` and `PROFILE:` in cyan. Inactive saved-device values use the off-white yellow. The `REMOVE DEVICE` option remains an indented selectable action.
+For `DEVICE DETAILS`, active-device name and dynamic values after `TYPE:`, `STATUS:` and `PROFILE:` are cyan. Inactive saved-device values are off-white yellow. `REMOVE DEVICE` remains an indented selectable action.
 
 ## Actions fire on release
 
-No navigation, apply, cancel, retry, remove, lock or access action executes on the initial press. Press only changes visual state. The action executes on release.
+No navigation, apply, cancel, retry, remove, lock or access action executes on initial press. Press only changes visible feedback when that control has a visible label. Action executes on release.
 
-## Option lists
+Controls may have hidden behavior even when no hint is printed. Absence from the hint area does not disable the control.
 
-On entry, the first option is selected unless a screen-specific rule restores a meaningful current value.
+## Global Back rule
 
-- `JOY UP`: previous item;
-- `JOY DOWN`: next item;
-- `JOY PRESS`: access selected item;
-- selection wraps: Up from first -> last; Down from last -> first.
+`KEY B` means one-screen **Back** everywhere except HOME and `LEARN THE KEYS`.
 
-Where a `WILL BECOME` screen represents an already configured source, its current/draft target is the initial selected/current cyan option.
+The visible word may be `BACK`, `CANCEL`, or another context label; the runtime behavior is still one-screen back. `CANCEL` therefore means "leave this page without applying its pending action" and return to the previous logical page.
 
-## Pagination
+HOME is the first page, so hidden `KEY B: BACK` is a no-op there.
 
-Paginated screens use `JOY LEFT` and `JOY RIGHT` for page navigation.
+There is no `GO TO HOME` action. No screen may expose or implement `JOY LEFT: GO TO HOME`. If one-screen Back happens to arrive at HOME, that is only because HOME is the previous logical page.
 
-Pagination wraps:
+Help is the exception in presentation only: `ANY KEY: BACK` consumes any HAT control and returns to its owning page; Key Y does not lock while Help owns interaction.
 
-- Left from first page -> last page;
-- Right from last page -> first page.
+## Option lists and pagination
 
-`STATUS` always has exactly two pages: `MOUSE STATUS` and `OTHER DEVICES STATUS`.
+On entry, the first option is selected unless a screen restores a meaningful current value.
 
-`SAVED DEVICES` has as many pages as required, with at most four devices per page. Removing the last item on a trailing page removes that page from pagination.
+- Joy Up: previous option;
+- Joy Down: next option;
+- Joy Press: access selected option;
+- option selection wraps.
 
-## Global HAT policy
+Where listed as hidden controls, Joy Up/Down keep exactly the same behavior without a printed hint.
 
-Terminology is fixed:
-
-- directional stick and center: `JOY UP`, `JOY DOWN`, `JOY LEFT`, `JOY RIGHT`, `JOY PRESS`;
-- face buttons: `KEY A`, `KEY B`, `KEY X`, `KEY Y`.
-
-Usual functions:
-
-- Key A: primary mutation (`APPLY`, `RETRY`, `REMOVE`, `APPLY AND BACK`, etc.);
-- Key B: one-screen Back/Cancel where applicable;
-- Key X: contextual Help where defined;
-- Key Y: Lock and principal advertised Unlock control;
-- Joy Left/Right: pagination when the current screen is paginated;
-- Joy Up/Down: selection in option lists;
-- Joy Press: access selected option.
-
-Screen-specific canonical hints override the generic presentation but not the underlying frozen behavior unless explicitly declared as an exception.
+Paginated screens use Joy Left/Right with wrap. `STATUS` has exactly two pages. `SAVED DEVICES` has at most four devices per page.
 
 ## Lock/unlock
 
-Key Y release locks from normal screens where lock is allowed and turns off the backlight.
+Key Y release locks on every normal non-Help screen where the screen map declares Lock, including Pair, Custom target and Remove screens. `LEARN THE KEYS` also locks on Key Y release.
 
-While locked, the first physical HAT control press/release interaction from **any control** is consumed solely to unlock, turn the display back on and return to HOME. Its normal action does not also execute. Key Y is shown as the primary discoverable unlock mechanism in the UI.
+While locked, the first complete physical HAT interaction from any control is consumed solely to unlock, turn the display back on and return to HOME. The same interaction must not navigate or activate another action. Key Y remains the principal advertised unlock control.
 
-## Help
+## Per-screen controls
 
-A Help screen owns the interaction context. `ANY KEY: BACK` means any HAT control, including Key Y; Key Y does not lock while a Help screen is active.
+The normative per-screen visible and hidden controls are defined beside each layout in `01-screen-layouts.md`. Those declarations are part of the product contract, not commentary.
+
+Hardware controls are `JOY UP`, `JOY DOWN`, `JOY LEFT`, `JOY RIGHT`, `JOY PRESS`, `KEY A`, `KEY B`, `KEY X`, and `KEY Y`. There is no physical `KEY C`; Help on Pair Mouse therefore uses `KEY X`, consistent with the HAT and all other Pair screens.
 
 ## Learn The Keys
 
-`LEARN THE KEYS` is didactic and follows its exact character alignment from the screen-layout contract.
+The screen identity and HOME option remain `LEARN THE KEYS`; displayed title is `PRESS TO LEAR A KEY`.
 
-On this screen controls primarily provide press/release visual demonstration. Key Y is the only control with a product action: its release locks the display. Other controls do not navigate or apply actions while this page owns the interaction context.
+It is didactic. Other than Key Y lock, controls only demonstrate press/release feedback. `KEY A`, `KEY B`, and `KEY X` begin at character column 16 (1-based). Any control used to unlock while locked returns to HOME and is consumed.
 
 ## Custom Remap
 
-`EDIT CUSTOM REMAP` is an option-list editor for the Pico's global CustomTemplate and is available without a mouse.
+`EDIT CUSTOM REMAP` edits the Pico-global CustomTemplate without requiring a connected or saved Mouse. Target order is LEFT, RIGHT, MIDDLE, BACKWARD, FORWARD, ESCAPE.
 
-Each `... WILL BECOME` page contains exactly these targets in this order:
-
-1. LEFT
-2. RIGHT
-3. MIDDLE
-4. BACKWARD
-5. FORWARD
-6. ESCAPE
-
-`KEY A: APPLY AND BACK` changes the draft mapping for that source and returns to `EDIT CUSTOM REMAP`.
-
-`KEY A: APPLY CUSTOM` on the editor commits the entire draft as defined by the product contract.
+`KEY A: APPLY AND BACK` changes the draft mapping and returns to `EDIT CUSTOM REMAP`. `KEY A: APPLY CUSTOM` commits the complete draft. Hidden Key B performs one-screen Back without committing the current target page, and hidden Key Y locks.
 
 ## Dynamic/example body text
 
-When a page says its black-area body is an example, implementation may define that body text from runtime context. Such text remains unindented and off-white yellow unless the page defines a cyan success/current state.
-
-Fixed blocks in `01-screen-layouts.md` are literal and must not be paraphrased by implementation.
+Dynamic/example body text remains unindented and off-white yellow unless explicitly representing current/success state. Fixed blocks in `01-screen-layouts.md` are literal.
