@@ -156,11 +156,11 @@ static void project_learn_pressed(const blu2usb_ux_model_t *ux, blu2usb_ui_frame
     if (blu2usb_interaction_is_pressed(&ux->interaction, BLU2USB_CONTROL_JOY_DOWN))
         (void)blu2usb_ui_frame_set_tone_span(frame,4,5,8,BLU2USB_UI_TONE_EMPHASIZED);
     if (blu2usb_interaction_is_pressed(&ux->interaction, BLU2USB_CONTROL_KEY_A))
-        (void)blu2usb_ui_frame_set_tone_span(frame,5,14,5,BLU2USB_UI_TONE_EMPHASIZED);
+        (void)blu2usb_ui_frame_set_tone_span(frame,5,15,5,BLU2USB_UI_TONE_EMPHASIZED);
     if (blu2usb_interaction_is_pressed(&ux->interaction, BLU2USB_CONTROL_KEY_B))
-        (void)blu2usb_ui_frame_set_tone_span(frame,6,14,5,BLU2USB_UI_TONE_EMPHASIZED);
+        (void)blu2usb_ui_frame_set_tone_span(frame,6,15,5,BLU2USB_UI_TONE_EMPHASIZED);
     if (blu2usb_interaction_is_pressed(&ux->interaction, BLU2USB_CONTROL_KEY_X))
-        (void)blu2usb_ui_frame_set_tone_span(frame,7,14,5,BLU2USB_UI_TONE_EMPHASIZED);
+        (void)blu2usb_ui_frame_set_tone_span(frame,7,15,5,BLU2USB_UI_TONE_EMPHASIZED);
     if (blu2usb_interaction_is_pressed(&ux->interaction, BLU2USB_CONTROL_KEY_Y)) {
         (void)blu2usb_ui_frame_set_tone_span(frame,6,0,11,BLU2USB_UI_TONE_EMPHASIZED);
         (void)blu2usb_ui_frame_set_tone_span(frame,7,1,10,BLU2USB_UI_TONE_EMPHASIZED);
@@ -235,6 +235,16 @@ uint16_t blu2usb_renderer_separator_boundary_y(const blu2usb_ui_frame_t *frame)
     return boundary < BLU2USB_RENDERER_HEIGHT ? boundary : BLU2USB_RENDERER_HEIGHT;
 }
 
+static uint16_t relocated_cell_x(uint8_t column)
+{
+    return (uint16_t)(BLU2USB_RENDERER_TEXT_X + (uint16_t)column * BLU2USB_RENDERER_CHAR_ADVANCE);
+}
+
+static uint16_t relocated_cell_y(uint8_t row)
+{
+    return (uint16_t)(BLU2USB_RENDERER_TEXT_Y + (uint16_t)row * BLU2USB_RENDERER_LINE_ADVANCE);
+}
+
 static bool draw_cell(const blu2usb_display_hal_t *display, const blu2usb_ui_frame_t *frame, uint8_t row, uint8_t column)
 {
     const blu2usb_ui_cell_t *cell = &frame->cells[row][column];
@@ -251,8 +261,8 @@ static bool draw_cell(const blu2usb_display_hal_t *display, const blu2usb_ui_fra
             pixels[out++] = on ? foreground : background;
         }
     }
-    const uint16_t x = (uint16_t)(BLU2USB_RENDERER_TEXT_X + (uint16_t)column * BLU2USB_RENDERER_CHAR_ADVANCE);
-    const uint16_t y = (uint16_t)(BLU2USB_RENDERER_TEXT_Y + (uint16_t)row * BLU2USB_RENDERER_LINE_ADVANCE);
+    const uint16_t x = relocated_cell_x(column);
+    const uint16_t y = relocated_cell_y(row);
     return display->write_rgb565(display->context,x,y,BLU2USB_RENDERER_GLYPH_WIDTH,BLU2USB_RENDERER_GLYPH_HEIGHT,pixels);
 }
 
