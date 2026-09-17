@@ -150,6 +150,7 @@ if(BLU2USB_BUILD_PICO)
         pico_stdlib
         pico_btstack_classic_headers
         blu2usb_bt_runtime
+        blu2usb_ble_hogp
     )
 
     target_sources(blu2usb_keyboard_transport PRIVATE
