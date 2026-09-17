@@ -68,7 +68,7 @@ static void test_learn_projection_and_feedback(void)
     blu2usb_ux_model_t ux; blu2usb_ui_frame_t frame; blu2usb_ux_init(&ux); ux.screen=BLU2USB_SCREEN_LEARN_KEYS;
     blu2usb_ui_project(&ux,&frame);
     assert(frame.learn_background&&frame.hint_start_row==9u);
-    assert_text(&frame,0,0,"PRESS TO LEAR A KEY");
+    assert_text(&frame,0,0,"PRESS TO LEARN A KEY");
     assert(frame.cells[0][0].tone==BLU2USB_UI_TONE_TITLE);
     assert(frame.cells[1][6].tone==BLU2USB_UI_TONE_ACTIONABLE);
     assert(frame.cells[5][14].character==' '&&frame.cells[5][15].character=='K');
@@ -128,7 +128,7 @@ static void test_back_cancel_hidden_controls_and_pair_help_label(void)
 
     ux.screen=BLU2USB_SCREEN_PAIR_MOUSE;
     blu2usb_ui_project(&ux,&frame);
-    assert_text(&frame,8,0,"KEY C: HELP");
+    assert_text(&frame,8,0,"KEY X: HELP");
     send(&ux,BLU2USB_CONTROL_KEY_X,true); blu2usb_ui_project(&ux,&frame);
     assert(frame.cells[8][0].tone==BLU2USB_UI_TONE_EMPHASIZED);
     send(&ux,BLU2USB_CONTROL_KEY_X,false);
