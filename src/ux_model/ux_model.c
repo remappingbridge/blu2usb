@@ -185,6 +185,18 @@ static blu2usb_mouse_source_t custom_source_for(unsigned selection) {
     return ids[selection < 5 ? selection : 0];
 }
 
+static blu2usb_screen_id_t example_saved_device_details_for(unsigned index) {
+    static const blu2usb_screen_id_t ids[6] = {
+        BLU2USB_SCREEN_DEVICE_DETAILS_KEYBOARD,
+        BLU2USB_SCREEN_DEVICE_DETAILS_MOUSE,
+        BLU2USB_SCREEN_DEVICE_DETAILS_KEYBOARD,
+        BLU2USB_SCREEN_DEVICE_DETAILS_MOUSE,
+        BLU2USB_SCREEN_DEVICE_DETAILS_MOUSE,
+        BLU2USB_SCREEN_DEVICE_DETAILS_KEYBOARD
+    };
+    return index < 6u ? ids[index] : BLU2USB_SCREEN_DEVICE_DETAILS_COMPOSITE;
+}
+
 blu2usb_ux_command_t blu2usb_ux_input(blu2usb_ux_model_t *ux, blu2usb_control_t control, bool pressed) {
     blu2usb_ux_command_t cmd = no_command();
     blu2usb_interaction_event_t event = blu2usb_interaction_input(&ux->interaction, control, pressed);
@@ -290,6 +302,12 @@ blu2usb_ux_command_t blu2usb_ux_input(blu2usb_ux_model_t *ux, blu2usb_control_t 
         return cmd;
     }
 
+    if (ux->screen == BLU2USB_SCREEN_SAVED_DEVICES && control == BLU2USB_CONTROL_JOY_PRESS && count) {
+        const unsigned absolute_index = ux->saved_page * 4u + ux->selection;
+        enter(ux, example_saved_device_details_for(absolute_index));
+        return cmd;
+    }
+
     if ((ux->screen == BLU2USB_SCREEN_DEVICE_DETAILS_MOUSE || ux->screen == BLU2USB_SCREEN_DEVICE_DETAILS_KEYBOARD || ux->screen == BLU2USB_SCREEN_DEVICE_DETAILS_COMPOSITE) &&
         control == BLU2USB_CONTROL_JOY_PRESS) {
         ux->return_screen = ux->screen;
@@ -297,10 +315,18 @@ blu2usb_ux_command_t blu2usb_ux_input(blu2usb_ux_model_t *ux, blu2usb_control_t 
         return cmd;
     }
 
-    if (ux->screen == BLU2USB_SCREEN_APPLY_PASSTHROUGH && control == BLU2USB_CONTROL_KEY_A) cmd.kind = BLU2USB_UX_COMMAND_APPLY_PASSTHROUGH;
-    else if (ux->screen == BLU2USB_SCREEN_APPLY_DEFAULT && control == BLU2USB_CONTROL_KEY_A) cmd.kind = BLU2USB_UX_COMMAND_APPLY_DEFAULT;
-    else if (ux->screen == BLU2USB_SCREEN_APPLY_ESCAPE && control == BLU2USB_CONTROL_KEY_A) cmd.kind = BLU2USB_UX_COMMAND_APPLY_ESCAPE;
-    else if (ux->screen == BLU2USB_SCREEN_REMOVE_DEVICE && control == BLU2USB_CONTROL_KEY_A) cmd.kind = BLU2USB_UX_COMMAND_REMOVE_DEVICE;
+    if (ux->screen == BLU2USB_SCREEN_APPLY_PASSTHROUGH && control == BLU2USB_CONTROL_KEY_A) {
+        cmd.kind = BLU2USB_UX_COMMAND_APPLY_PASSTHROUGH;
+        enter(ux, BLU2USB_SCREEN_PASSTHROUGH_APPLIED);
+    } else if (ux->screen == BLU2USB_SCREEN_APPLY_DEFAULT && control == BLU2USB_CONTROL_KEY_A) {
+        cmd.kind = BLU2USB_UX_COMMAND_APPLY_DEFAULT;
+        enter(ux, BLU2USB_SCREEN_DEFAULT_APPLIED);
+    } else if (ux->screen == BLU2USB_SCREEN_APPLY_ESCAPE && control == BLU2USB_CONTROL_KEY_A) {
+        cmd.kind = BLU2USB_UX_COMMAND_APPLY_ESCAPE;
+        enter(ux, BLU2USB_SCREEN_ESCAPE_APPLIED);
+    } else if (ux->screen == BLU2USB_SCREEN_REMOVE_DEVICE && control == BLU2USB_CONTROL_KEY_A) {
+        cmd.kind = BLU2USB_UX_COMMAND_REMOVE_DEVICE;
+    }
 
     return cmd;
 }
