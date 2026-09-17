@@ -43,6 +43,13 @@ target_link_libraries(blu2usb_test_g06_profiles_remap_hidpp PRIVATE
 )
 add_test(NAME g06_profiles_remap_hidpp COMMAND blu2usb_test_g06_profiles_remap_hidpp)
 
+add_executable(blu2usb_test_g06_storage test_g06_storage.c)
+target_link_libraries(blu2usb_test_g06_storage PRIVATE
+    blu2usb_profiles
+    blu2usb_storage
+)
+add_test(NAME g06_product_persistence COMMAND blu2usb_test_g06_storage)
+
 add_executable(blu2usb_test_g06_profile_ui test_g06_profile_ui.c)
 target_link_libraries(blu2usb_test_g06_profile_ui PRIVATE
     blu2usb_renderer
