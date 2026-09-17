@@ -14,7 +14,7 @@ if(BLU2USB_BUILD_PICO)
     include("${PICO_SDK_PATH}/external/pico_sdk_import.cmake")
 endif()
 
-project(blu2usb_picow VERSION 0.6.0 LANGUAGES C CXX ASM)
+project(blu2usb_picow VERSION 0.7.0 LANGUAGES C CXX ASM)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -35,8 +35,9 @@ blu2usb_declare_contract_modules()
 
 add_library(blu2usb_contract STATIC src/domain/version.c)
 target_include_directories(blu2usb_contract PUBLIC include)
-target_compile_definitions(blu2usb_contract PUBLIC BLU2USB_VERSION_STRING="0.6.0-g06")
-# Regression marker consumed by the inherited G05 architecture check only:
+target_compile_definitions(blu2usb_contract PUBLIC BLU2USB_VERSION_STRING="0.7.0-g07")
+# Regression markers consumed by inherited architecture checks:
+# BLU2USB_VERSION_STRING="0.6.0-g06"
 # BLU2USB_VERSION_STRING="0.5.0-g05"
 
 add_library(blu2usb_hid_aggregator STATIC
@@ -87,6 +88,16 @@ target_include_directories(blu2usb_bt_runtime PUBLIC include)
 add_library(blu2usb_ble_hogp STATIC src/ble_hogp/ble_hogp.c)
 target_include_directories(blu2usb_ble_hogp PUBLIC include)
 
+add_library(blu2usb_classic_hid STATIC src/classic_hid/classic_hid.c)
+target_include_directories(blu2usb_classic_hid PUBLIC include)
+target_link_libraries(blu2usb_classic_hid PUBLIC blu2usb_bt_runtime)
+
+add_library(blu2usb_keyboard_transport STATIC
+    src/keyboard_transport/keyboard_transport.c
+)
+target_include_directories(blu2usb_keyboard_transport PUBLIC include)
+target_link_libraries(blu2usb_keyboard_transport PUBLIC blu2usb_classic_hid)
+
 add_library(blu2usb_logitech_hidpp STATIC src/logitech_hidpp/logitech_hidpp.c)
 target_include_directories(blu2usb_logitech_hidpp PUBLIC include)
 
@@ -106,16 +117,30 @@ if(BLU2USB_BUILD_PICO)
     target_sources(blu2usb_storage PRIVATE src/storage/storage_pico.c)
     target_link_libraries(blu2usb_storage PRIVATE pico_stdlib pico_flash hardware_flash)
 
+    # G07 owns exactly one compiled BTstack image. Both BLE and Classic source
+    # sets are materialized into this runtime archive so the protocol adapters
+    # do not each compile another copy of hci/l2cap/btstack_memory.
+    #
+    # The BKB-3G POC, integrated PICO-08 BLE+Classic firmware and the later
+    # Classic G02/G03 line all execute Bluetooth on a dedicated Core1. Keep the
+    # same proven execution envelope here: explicit 8 KiB SRAM stack in
+    # bt_runtime_pico.c, no linker-owned default Core1 stack, Core0 reserved for
+    # USB/HAT/LCD/application work.
     target_sources(blu2usb_bt_runtime PRIVATE src/bt_runtime/bt_runtime_pico.c)
     target_link_libraries(blu2usb_bt_runtime PRIVATE
         pico_stdlib
+        pico_multicore
+        pico_flash
+        hardware_sync
         pico_btstack_ble
+        pico_btstack_classic
         pico_btstack_cyw43
         pico_cyw43_arch_threadsafe_background
     )
     target_compile_definitions(blu2usb_bt_runtime PUBLIC
         CYW43_LWIP=0
         PICO_BTSTACK_CYW43_MAX_HCI_PROCESS_LOOP_COUNT=8
+        PICO_CORE1_STACK_SIZE=0
     )
     pico_btstack_make_gatt_header(
         blu2usb_bt_runtime
@@ -124,7 +149,27 @@ if(BLU2USB_BUILD_PICO)
     )
 
     target_sources(blu2usb_ble_hogp PRIVATE src/ble_hogp/ble_hogp_pico.c)
-    target_link_libraries(blu2usb_ble_hogp PRIVATE pico_stdlib pico_btstack_ble blu2usb_bt_runtime)
+    target_link_libraries(blu2usb_ble_hogp PRIVATE
+        pico_stdlib
+        pico_btstack_ble_headers
+        blu2usb_bt_runtime
+    )
+
+    target_sources(blu2usb_classic_hid PRIVATE src/classic_hid/classic_hid_pico.c)
+    target_link_libraries(blu2usb_classic_hid PRIVATE
+        pico_stdlib
+        pico_btstack_classic_headers
+        blu2usb_bt_runtime
+        blu2usb_ble_hogp
+    )
+
+    target_sources(blu2usb_keyboard_transport PRIVATE
+        src/keyboard_transport/keyboard_transport_pico.c
+    )
+    target_link_libraries(blu2usb_keyboard_transport PRIVATE
+        blu2usb_classic_hid
+        blu2usb_bt_runtime
+    )
 
     target_sources(blu2usb_logitech_hidpp PRIVATE src/logitech_hidpp/logitech_hidpp_pico.c)
     target_link_libraries(blu2usb_logitech_hidpp PRIVATE blu2usb_ble_hogp)
@@ -142,6 +187,8 @@ target_link_libraries(blu2usb_module_hat INTERFACE blu2usb_hat)
 target_link_libraries(blu2usb_module_usb_hid INTERFACE blu2usb_usb_hid)
 target_link_libraries(blu2usb_module_bt_runtime INTERFACE blu2usb_bt_runtime)
 target_link_libraries(blu2usb_module_ble_hogp INTERFACE blu2usb_ble_hogp)
+target_link_libraries(blu2usb_module_classic_hid INTERFACE blu2usb_classic_hid)
+target_link_libraries(blu2usb_module_keyboard_transport INTERFACE blu2usb_keyboard_transport)
 target_link_libraries(blu2usb_module_logitech_hidpp INTERFACE blu2usb_logitech_hidpp)
 
 if(BLU2USB_BUILD_TESTS)
@@ -150,6 +197,7 @@ if(BLU2USB_BUILD_TESTS)
 
     add_executable(blu2usb_test_bootstrap tests/test_bootstrap.c)
     target_link_libraries(blu2usb_test_bootstrap PRIVATE blu2usb_contract)
+    target_compile_options(blu2usb_test_bootstrap PRIVATE -UNDEBUG)
     add_test(NAME bootstrap_contract COMMAND blu2usb_test_bootstrap)
 
     add_subdirectory(tests)

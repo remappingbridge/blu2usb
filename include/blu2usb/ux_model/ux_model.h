@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include "blu2usb/domain/keyboard_pairing.h"
 #include "blu2usb/domain/control.h"
 #include "blu2usb/domain/profile.h"
 #include "blu2usb/interaction/interaction.h"
@@ -99,6 +100,13 @@ void blu2usb_ux_restore_profile_state(
     const blu2usb_mouse_target_t custom_targets[BLU2USB_MOUSE_SOURCE_COUNT]);
 void blu2usb_ux_set_mouse_connected(bool connected);
 bool blu2usb_ux_mouse_connected(void);
+void blu2usb_ux_set_keyboard_connected(bool connected);
+bool blu2usb_ux_keyboard_connected(void);
+void blu2usb_ux_set_keyboard_pair_code(uint32_t value, uint8_t digits);
+void blu2usb_ux_clear_keyboard_pair_code(void);
+void blu2usb_ux_set_keyboard_pair_progress(blu2usb_keyboard_pair_progress_t progress);
+blu2usb_keyboard_pair_progress_t blu2usb_ux_keyboard_pair_progress(void);
+bool blu2usb_ux_keyboard_pair_code(uint32_t *value, uint8_t *digits);
 const blu2usb_screen_template_t *blu2usb_ux_screen_template(blu2usb_screen_id_t screen);
 unsigned blu2usb_ux_option_count(const blu2usb_ux_model_t *ux);
 uint16_t blu2usb_ux_learn_white_span_mask(const blu2usb_ux_model_t *ux);

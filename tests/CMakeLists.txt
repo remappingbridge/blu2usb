@@ -63,8 +63,52 @@ add_test(
             ${PROJECT_SOURCE_DIR}
 )
 
+add_executable(blu2usb_test_g07_keyboard_transport test_g07_keyboard_transport.c)
+target_link_libraries(blu2usb_test_g07_keyboard_transport PRIVATE
+    blu2usb_classic_hid
+    blu2usb_keyboard_transport
+    blu2usb_hid_aggregator
+    blu2usb_bt_runtime
+)
+add_test(NAME g07_keyboard_transport COMMAND blu2usb_test_g07_keyboard_transport)
+
+add_executable(blu2usb_test_g07_keyboard_ui test_g07_keyboard_ui.c)
+target_link_libraries(blu2usb_test_g07_keyboard_ui PRIVATE
+    blu2usb_renderer
+    blu2usb_ux_model
+)
+add_test(NAME g07_keyboard_ui COMMAND blu2usb_test_g07_keyboard_ui)
+
+add_test(
+    NAME g07_architecture
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_g07_architecture.py
+            ${PROJECT_SOURCE_DIR}
+)
+
+add_test(
+    NAME g07_documentation
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_g07_docs.py
+            ${PROJECT_SOURCE_DIR}
+)
+
 add_test(
     NAME screen_contract
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_screen_contract.py
             ${PROJECT_SOURCE_DIR}
 )
+
+add_executable(blu2usb_test_g07_classic_adapter
+    test_g07_classic_adapter.c
+    ../src/classic_hid/classic_hid_pico.c
+)
+target_include_directories(blu2usb_test_g07_classic_adapter PRIVATE fakes)
+target_link_libraries(blu2usb_test_g07_classic_adapter PRIVATE blu2usb_keyboard_transport)
+add_test(NAME g07_classic_adapter_async COMMAND blu2usb_test_g07_classic_adapter)
+
+# Keep the actual assertions active in the Release CI configuration.
+get_property(host_test_targets DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
+foreach(test_target IN LISTS host_test_targets)
+    if(test_target MATCHES "^blu2usb_test_")
+        target_compile_options(${test_target} PRIVATE -UNDEBUG)
+    endif()
+endforeach()
