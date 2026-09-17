@@ -24,6 +24,7 @@ transport_h = (root / 'include/blu2usb/keyboard_transport/keyboard_transport.h')
 transport = (root / 'src/keyboard_transport/keyboard_transport.c').read_text(encoding='utf-8')
 app = (root / 'src/app/main.c').read_text(encoding='utf-8')
 runtime = (root / 'src/bt_runtime/bt_runtime_pico.c').read_text(encoding='utf-8')
+btstack_config = (root / 'include/btstack_config.h').read_text(encoding='utf-8')
 
 for text, label in ((classic, 'classic core'), (transport, 'keyboard transport core')):
     lower = text.lower()
@@ -45,7 +46,7 @@ for token in (
     'hid_host_init',
     'hid_host_connect',
     'hid_host_accept_connection',
-    'HID_PROTOCOL_MODE_REPORT_WITH_FALLBACK_TO_BOOT',
+    'HID_PROTOCOL_MODE_REPORT',
     'HCI_EVENT_USER_PASSKEY_NOTIFICATION',
     'gap_pin_code_response',
     'btstack_hid_parser_init',
@@ -53,6 +54,16 @@ for token in (
     'blu2usb_bt_runtime_register_session_setup',
 ):
     assert token in classic_pico, f'missing Classic HID Pico behavior: {token}'
+assert 'HID_PROTOCOL_MODE_REPORT_WITH_FALLBACK_TO_BOOT' not in classic_pico
+
+for token in (
+    '#define MAX_NR_HCI_CONNECTIONS 2',
+    '#define MAX_NR_HID_HOST_CONNECTIONS 1',
+    '#define MAX_NR_BTSTACK_LINK_KEY_DB_MEMORY_ENTRIES 2',
+    '#define NVM_NUM_LINK_KEYS 16',
+    '#define MAX_NR_L2CAP_SERVICES 3',
+):
+    assert token in btstack_config, f'BTstack not sized for BLE Mouse + Classic Keyboard: {token}'
 
 for forbidden in ('tud_disconnect(', 'tud_connect(', 'printf(', 'uart_', 'stdio_uart'):
     assert forbidden not in classic_pico.lower(), f'Classic adapter violates production policy: {forbidden}'
