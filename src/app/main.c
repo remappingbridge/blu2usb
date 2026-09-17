@@ -172,7 +172,8 @@ static void handle_ux_command(blu2usb_ux_model_t *ux,
     }
 }
 
-static void service_ble_messages(blu2usb_hid_aggregator_t *aggregator,
+static bool service_ble_messages(blu2usb_ux_model_t *ux,
+                                 blu2usb_hid_aggregator_t *aggregator,
                                  const blu2usb_remap_t *remap,
                                  bool *mouse_valid,
                                  bool *keyboard_valid)
@@ -181,6 +182,7 @@ static void service_ble_messages(blu2usb_hid_aggregator_t *aggregator,
         blu2usb_hid_source_make(BLU2USB_HID_SOURCE_MOUSE, 1u);
     const blu2usb_hid_source_t synthetic =
         blu2usb_hid_source_make(BLU2USB_HID_SOURCE_SYNTHETIC_REMAP, 1u);
+    bool ui_changed = false;
 
     for (unsigned count = 0u; count < BLU2USB_RUNTIME_MESSAGES_PER_TICK; ++count) {
         blu2usb_bt_runtime_message_t message;
@@ -189,8 +191,21 @@ static void service_ble_messages(blu2usb_hid_aggregator_t *aggregator,
         if (!blu2usb_ble_hogp_decode_runtime_message(&message, &event)) continue;
         switch (event.type) {
         case BLU2USB_BLE_HOGP_EVENT_CONNECTED:
+            if (!blu2usb_ux_mouse_connected()) {
+                blu2usb_ux_set_mouse_connected(true);
+                ui_changed = true;
+            }
+            if (ux != NULL && ux->screen == BLU2USB_SCREEN_PAIR_MOUSE) {
+                ux->screen = BLU2USB_SCREEN_MOUSE_SAVED;
+                ux->selection = 0u;
+                ui_changed = true;
+            }
             break;
         case BLU2USB_BLE_HOGP_EVENT_DISCONNECTED:
+            if (blu2usb_ux_mouse_connected()) {
+                blu2usb_ux_set_mouse_connected(false);
+                ui_changed = true;
+            }
             (void)blu2usb_hid_aggregator_release_source(aggregator, mouse);
             (void)blu2usb_hid_aggregator_release_source(aggregator, synthetic);
             *mouse_valid = false;
@@ -213,6 +228,7 @@ static void service_ble_messages(blu2usb_hid_aggregator_t *aggregator,
         *mouse_valid = false;
         *keyboard_valid = false;
     }
+    return ui_changed;
 }
 
 int main(void)
@@ -229,6 +245,7 @@ int main(void)
     bool last_keyboard_valid = false;
 
     blu2usb_ux_init(&ux);
+    blu2usb_ux_set_mouse_connected(false);
     ux.screen = BLU2USB_SCREEN_LEARN_KEYS;
     blu2usb_hid_aggregator_init(&aggregator);
     blu2usb_profiles_init(&profiles);
@@ -247,7 +264,11 @@ int main(void)
 
     for (;;) {
         blu2usb_usb_hid_pico_task();
-        service_ble_messages(&aggregator, &remap, &last_mouse_valid, &last_keyboard_valid);
+        const bool ble_ui_changed =
+            service_ble_messages(&ux, &aggregator, &remap,
+                                 &last_mouse_valid, &last_keyboard_valid);
+        if (ble_ui_changed && !blu2usb_interaction_is_locked(&ux.interaction))
+            (void)render_state(&display, &ux);
         service_usb_mouse(&aggregator, &last_mouse_buttons, &last_mouse_valid);
         service_usb_keyboard(&aggregator, &last_keyboard, &last_keyboard_valid);
 
