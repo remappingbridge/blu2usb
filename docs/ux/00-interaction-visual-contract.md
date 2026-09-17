@@ -30,7 +30,7 @@ Every canonical screen has exactly 9 rows and at most 21 characters per row. Exa
 
 ## Visual regions and colors
 
-`LEARN THE KEYS` / displayed title `PRESS TO LEAR A KEY` uses a full dark-magenta background. Every other screen uses black main content and dark-magenta hint content.
+`LEARN THE KEYS` / displayed title `PRESS TO LEARN A KEY` uses a full dark-magenta background. Every other screen uses black main content and dark-magenta hint content.
 
 Semantic colors are frozen:
 
@@ -85,11 +85,11 @@ While locked, the first complete physical HAT interaction from any control is co
 
 The normative per-screen visible and hidden controls are defined beside each layout in `01-screen-layouts.md`. Those declarations are part of the product contract, not commentary.
 
-Hardware controls are `JOY UP`, `JOY DOWN`, `JOY LEFT`, `JOY RIGHT`, `JOY PRESS`, `KEY A`, `KEY B`, `KEY X`, and `KEY Y`. The Pair Mouse screen keeps the requested UI label `KEY C: HELP`; on the Waveshare HAT that action is driven by the physical help face control wired as `KEY X`. Pair Keyboard and Pair Composite continue to display `KEY X: HELP`.
+Hardware controls are `JOY UP`, `JOY DOWN`, `JOY LEFT`, `JOY RIGHT`, `JOY PRESS`, `KEY A`, `KEY B`, `KEY X`, and `KEY Y`. Pair Mouse, Pair Keyboard and Pair Composite all display `KEY X: HELP` and are driven by the physical Key X control on the Waveshare HAT.
 
 ## Learn The Keys
 
-The screen identity and HOME option remain `LEARN THE KEYS`; displayed title is `PRESS TO LEAR A KEY`.
+The screen identity and HOME option remain `LEARN THE KEYS`; displayed title is `PRESS TO LEARN A KEY`.
 
 It is didactic. Other than Key Y lock, controls only demonstrate press/release feedback. `KEY A`, `KEY B`, and `KEY X` begin at character column 16 (1-based). Any control used to unlock while locked returns to HOME and is consumed.
 
