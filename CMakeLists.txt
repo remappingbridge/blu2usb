@@ -55,6 +55,9 @@ add_library(blu2usb_remap STATIC src/remap/remap.c)
 target_include_directories(blu2usb_remap PUBLIC include)
 target_link_libraries(blu2usb_remap PUBLIC blu2usb_profiles)
 
+add_library(blu2usb_storage STATIC src/storage/storage.c)
+target_include_directories(blu2usb_storage PUBLIC include)
+
 add_library(blu2usb_interaction STATIC src/interaction/interaction.c)
 target_include_directories(blu2usb_interaction PUBLIC include)
 
@@ -100,6 +103,9 @@ if(BLU2USB_BUILD_PICO)
     )
     target_link_libraries(blu2usb_usb_hid PUBLIC tinyusb_device)
 
+    target_sources(blu2usb_storage PRIVATE src/storage/storage_pico.c)
+    target_link_libraries(blu2usb_storage PRIVATE pico_stdlib pico_flash hardware_flash)
+
     target_sources(blu2usb_bt_runtime PRIVATE src/bt_runtime/bt_runtime_pico.c)
     target_link_libraries(blu2usb_bt_runtime PRIVATE
         pico_stdlib
@@ -128,6 +134,7 @@ endif()
 target_link_libraries(blu2usb_module_hid_aggregator INTERFACE blu2usb_hid_aggregator)
 target_link_libraries(blu2usb_module_profiles INTERFACE blu2usb_profiles)
 target_link_libraries(blu2usb_module_remap INTERFACE blu2usb_remap)
+target_link_libraries(blu2usb_module_storage INTERFACE blu2usb_storage)
 target_link_libraries(blu2usb_module_interaction INTERFACE blu2usb_interaction)
 target_link_libraries(blu2usb_module_ux_model INTERFACE blu2usb_ux_model)
 target_link_libraries(blu2usb_module_renderer INTERFACE blu2usb_renderer)
