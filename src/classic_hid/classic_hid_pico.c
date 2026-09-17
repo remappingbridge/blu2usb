@@ -116,7 +116,7 @@ static void connect_target(const bd_addr_t address)
     uint16_t cid = 0u;
     const uint8_t status = hid_host_connect(
         g_target_address,
-        HID_PROTOCOL_MODE_REPORT_WITH_FALLBACK_TO_BOOT,
+        HID_PROTOCOL_MODE_REPORT,
         &cid);
     if (status != ERROR_CODE_SUCCESS) {
         g_hid_cid = 0u;
@@ -307,7 +307,7 @@ static void packet_handler(uint8_t packet_type, uint16_t channel,
             g_state = CLASSIC_HID_STATE_CONNECTING;
             (void)gap_inquiry_stop();
             hid_host_accept_connection(
-                g_hid_cid, HID_PROTOCOL_MODE_REPORT_WITH_FALLBACK_TO_BOOT);
+                g_hid_cid, HID_PROTOCOL_MODE_REPORT);
             break;
         case HID_SUBEVENT_CONNECTION_OPENED: {
             const uint8_t status = hid_subevent_connection_opened_get_status(packet);
