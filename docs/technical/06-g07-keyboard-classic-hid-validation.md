@@ -2,9 +2,11 @@
 
 ## Gate identity
 
-This is the current **G07** for `blu2usb-picow`. The original roadmap placed Logitech Lift HID++ in G07 and Keyboard transport in G08. The Lift HID++ scope was completed and physically accepted as part of current G06, so the Keyboard transport gate advances to current G07.
+This is the current **G07** for `blu2usb-RP2350`. The original roadmap placed Logitech Lift HID++ in G07 and Keyboard transport in G08. The Lift HID++ scope was completed and physically accepted as part of current G06, so the Keyboard transport gate advances to current G07.
 
 Base is the exact physically accepted G06 SHA `7eee024ad4ee726c5a85ffa2f32b9f47187878af`.
+
+The hardware target is Raspberry Pi Pico 2 W / RP2350 (`PICO_BOARD=pico2_w`), matching the physically proven BKB-3G POC.
 
 ## Scope
 
@@ -26,7 +28,7 @@ The Classic adapter:
 - performs Bluetooth Classic inquiry and remote-name resolution;
 - recognizes the proven BKB-3G names `Bluetooth keyboard 3.0` and `BKB-3G`;
 - accepts outgoing or incoming Classic HID Host connections;
-- requests Report protocol with fallback to Boot protocol;
+- requests the exact `HID_PROTOCOL_MODE_REPORT` mode proven by the BKB-3G POC/integration;
 - classifies the received HID descriptor as Keyboard only when Keyboard/Keypad usage page `0x07` is present;
 - parses HID reports using BTstack's HID parser and emits only canonical Keyboard key/modifier events;
 - uses source identity `BLU2USB_HID_SOURCE_KEYBOARD`;
@@ -34,6 +36,21 @@ The Classic adapter:
 - contains no TinyUSB descriptor/report ownership and no UI code.
 
 BLE and Classic are compiled into one shared BTstack runtime image. Protocol adapters receive the BTstack headers/feature defines but do not independently materialize duplicate HCI/L2CAP/base objects.
+
+## BTstack coexistence sizing
+
+The physically proven `picow-mouse-remapper` PICO-08 implementation established the minimum shape required for simultaneous BLE Mouse + Classic HID Keyboard. G07 must not regress to the earlier BLE-only limits.
+
+The production `btstack_config.h` therefore freezes at least:
+
+- `MAX_NR_HCI_CONNECTIONS 2` — one BLE Mouse ACL plus one Classic Keyboard ACL;
+- `MAX_NR_HID_HOST_CONNECTIONS 1` — one Classic HID Host session;
+- `MAX_NR_BTSTACK_LINK_KEY_DB_MEMORY_ENTRIES 2`;
+- `NVM_NUM_LINK_KEYS 16` — Classic link keys must be storable instead of the previous zero-slot configuration;
+- `MAX_NR_L2CAP_SERVICES 3`;
+- Classic enhanced retransmission support and BLE+Classic cross-transport key derivation remain enabled when their respective transports are compiled.
+
+These are runtime requirements, not build-only conveniences. A build that silently returns to one HCI connection or zero Classic link-key slots is a G07 regression even if CI still compiles.
 
 ## Pairing contract without terminal
 
@@ -96,7 +113,7 @@ Flash the final G07 UF2 and power-cycle. Confirm Learn/HAT behavior, the previou
 
 Navigate `HOME -> OTHER OPTIONS -> PAIR KEYBOARD`. Put the BKB-3G in pairing mode on the desired channel (`FN+1`, `FN+2` or `FN+3` until its pairing LED blinks).
 
-Expected: no Classic/BLE transport choice is displayed. If a PIN appears on the LCD, type that exact PIN on the BKB-3G and press Enter. Pairing ends on `KEYBOARD SAVED` with positive body cyan. Press `KEY B` once and confirm the UI returns directly to `OTHER OPTIONS`.
+Expected: no Classic/BLE transport choice is displayed. The Pico must discover and open the BKB-3G Classic HID connection even when the BLE Mouse path is also enabled. If a PIN appears on the LCD, type that exact PIN on the BKB-3G and press Enter. Pairing ends on `KEYBOARD SAVED` with positive body cyan. Press `KEY B` once and confirm the UI returns directly to `OTHER OPTIONS`.
 
 ### G07-03 — Representative typing
 
