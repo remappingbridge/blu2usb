@@ -25,6 +25,15 @@ target_link_libraries(blu2usb_test_g05_hid_ownership PRIVATE
 )
 add_test(NAME g05_canonical_hid_ownership COMMAND blu2usb_test_g05_hid_ownership)
 
+add_executable(blu2usb_test_g05_ble_mouse test_g05_ble_mouse.c)
+target_link_libraries(blu2usb_test_g05_ble_mouse PRIVATE
+    blu2usb_ble_hogp
+    blu2usb_bt_runtime
+    blu2usb_hid_aggregator
+    blu2usb_usb_hid
+)
+add_test(NAME g05_ble_hogp_mouse_passthrough COMMAND blu2usb_test_g05_ble_mouse)
+
 add_test(
     NAME screen_contract
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_screen_contract.py
