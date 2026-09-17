@@ -8,8 +8,8 @@ doc = (root / 'docs/ux/01-screen-layouts.md').read_text(encoding='utf-8')
 visual = (root / 'docs/ux/00-interaction-visual-contract.md').read_text(encoding='utf-8')
 blocks = re.findall(r'```text\n(.*?)\n```', doc, re.S)
 assert blocks, 'no canonical text blocks found'
-for block in blocks:
-    rows = block.splitlines()
+for block_text in blocks:
+    rows = block_text.splitlines()
     assert len(rows) == 9, f'{rows[0] if rows else "<empty>"}: expected 9 rows, got {len(rows)}'
     for i, row in enumerate(rows, 1):
         assert len(row) <= 21, f'{rows[0]} row {i} exceeds 21 chars: {len(row)} {row!r}'
@@ -26,6 +26,14 @@ assert learn[8].index('O') == 2
 
 pair_mouse = next(b.splitlines() for b in blocks if b.splitlines()[0] == 'PAIR MOUSE')
 assert pair_mouse[6:] == ['KEY A: RETRY ON ERROR', 'KEY B: CANCEL', 'KEY X: HELP']
+
+mouse_paired = next(b.splitlines() for b in blocks if b.splitlines()[0] == 'MOUSE PAIRED')
+assert mouse_paired[1:3] == ['MOUSE CONNECTED', 'READY TO USE']
+assert mouse_paired[7:] == ['KEY B: BACK', 'KEY Y: LOCK']
+
+mouse_status_blocks = [b.splitlines() for b in blocks if b.splitlines()[0] == 'MOUSE STATUS']
+assert any(rows[1] == 'MOUSE NOT CONNECTED' and rows[2] == 'PROFILE: PASSTHROUGH' for rows in mouse_status_blocks)
+assert any(rows[1] == 'MOUSE CONNECTED' and rows[2] == 'PROFILE: DEFAULT' for rows in mouse_status_blocks)
 
 pair_keyboard = next(b.splitlines() for b in blocks if b.splitlines()[0] == 'PAIR KEYBOARD')
 assert pair_keyboard[1] == 'SEARCHING KEYBOARD'
@@ -68,11 +76,18 @@ assert escape_done[7:] == ['KEY B: BACK', 'KEY Y: LOCK']
 passthrough_done = block('PASSTHROUGH APPLIED')
 assert passthrough_done[7:] == ['KEY B: BACK', 'KEY Y: LOCK']
 
+custom_done = block('CUSTOM APPLIED')
+assert custom_done[7:] == ['KEY B: BACK', 'KEY Y: LOCK']
+assert custom_done[1].startswith('LEFT IS ')
+
 assert 'KEY C: HELP' not in doc
 assert 'GO TO HOME' not in doc
 assert 'current/applied/success/connected active state: cyan' in visual
 assert 'Profile success pages are not an extra navigation level.' in visual
 assert '`DEFAULT REMAP`: Forward→Left, Left→Forward, Backward→Right, Right→Backward, Middle→Middle;' in visual
 assert '`ESCAPE REMAP`: Forward→Left, Backward→Right, Left→Escape, Right→Backward, Middle→Forward.' in visual
+assert '`MOUSE STATUS` row 1 is exactly `MOUSE CONNECTED` and is cyan;' in visual
+assert '`PAIR MOUSE` in `MOUSE OPTIONS` is cyan while unselected, and becomes white while selected;' in visual
+assert 'Successful application opens a dedicated `CUSTOM APPLIED` page.' in visual
 
-print('BLU2USB inherited screen/profile contract: OK')
+print('BLU2USB inherited screen/profile/live-connection contract: OK')
