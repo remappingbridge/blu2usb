@@ -2,6 +2,7 @@
 
 #include <string.h>
 #include "btstack.h"
+#include "ble/le_device_db.h"
 
 #define BLE_HOGP_DESCRIPTOR_STORAGE_SIZE 2048u
 #define BLE_HOGP_REJECTED_DEVICE_CAPACITY 4u
@@ -9,6 +10,7 @@
 #define BLE_APPEARANCE_HID_MOUSE 962u
 #define BLE_APPEARANCE_HID_LAST 1023u
 #define BLE_HOGP_VENDOR_SERVICE_MS 20u
+#define BLE_HOGP_BONDED_RECONNECT_TIMEOUT_MS 8000u
 
 _Static_assert(sizeof(blu2usb_canonical_mouse_event_t) <= BLU2USB_BT_RUNTIME_MESSAGE_PAYLOAD_SIZE,
                "canonical mouse event must fit runtime message");
@@ -41,11 +43,17 @@ static size_t g_rejected_next;
 static btstack_packet_callback_registration_t g_hci_registration;
 static btstack_packet_callback_registration_t g_sm_registration;
 static btstack_timer_source_t g_vendor_timer;
+static btstack_timer_source_t g_reconnect_timer;
+static bool g_reconnect_timer_active;
+static bool g_reconnect_cancel_pending;
+static bool g_reconnect_after_disconnect;
 static blu2usb_ble_hogp_vendor_backend_t g_vendor_backend;
 static bool g_vendor_registered;
 
 static void handle_gatt_client_event(uint8_t packet_type, uint16_t channel,
                                      uint8_t *packet, uint16_t size);
+static void start_scan(void);
+static void reconnect_or_scan(void);
 
 bool blu2usb_ble_hogp_register_vendor_backend(
     const blu2usb_ble_hogp_vendor_backend_t *backend)
@@ -133,22 +141,94 @@ static void reject_address(const bd_addr_t address, bd_addr_type_t type)
     g_rejected_next = (g_rejected_next + 1u) % BLE_HOGP_REJECTED_DEVICE_CAPACITY;
 }
 
+static void stop_reconnect_timer(void)
+{
+    if (!g_reconnect_timer_active) return;
+    (void)btstack_run_loop_remove_timer(&g_reconnect_timer);
+    g_reconnect_timer_active = false;
+}
+
 static void start_scan(void)
 {
+    stop_reconnect_timer();
+    g_reconnect_cancel_pending = false;
     g_state = BLE_HOGP_STATE_SCANNING;
     gap_set_scan_parameters(0u, 48u, 48u);
     gap_start_scan();
 }
 
-static void disconnect_and_rescan(void)
+static void reconnect_timeout_handler(btstack_timer_source_t *timer)
+{
+    (void)timer;
+    g_reconnect_timer_active = false;
+    if (g_state != BLE_HOGP_STATE_CONNECTING) return;
+
+    g_reconnect_cancel_pending = true;
+    if (gap_connect_cancel() != ERROR_CODE_SUCCESS) start_scan();
+}
+
+static bool start_bonded_reconnect(void)
+{
+    const int count = le_device_db_count();
+    if (count <= 0) return false;
+
+    stop_reconnect_timer();
+    g_reconnect_cancel_pending = false;
+    (void)gap_whitelist_clear();
+    (void)gap_load_resolving_list_from_le_device_db();
+
+    unsigned added = 0u;
+    for (int index = 0; index < count; ++index) {
+        int address_type = 0;
+        bd_addr_t address;
+        sm_key_t irk;
+        memset(address, 0, sizeof(address));
+        memset(irk, 0, sizeof(irk));
+        le_device_db_info(index, &address_type, address, irk);
+        if (gap_whitelist_add((bd_addr_type_t)address_type, address) != ERROR_CODE_SUCCESS)
+            continue;
+        if (added == 0u) {
+            memcpy(g_remote_address, address, sizeof(bd_addr_t));
+            g_remote_address_type = (bd_addr_type_t)address_type;
+        }
+        ++added;
+    }
+
+    if (added == 0u || gap_connect_with_whitelist() != ERROR_CODE_SUCCESS) return false;
+
+    g_state = BLE_HOGP_STATE_CONNECTING;
+    btstack_run_loop_set_timer(&g_reconnect_timer,
+                               BLE_HOGP_BONDED_RECONNECT_TIMEOUT_MS);
+    btstack_run_loop_add_timer(&g_reconnect_timer);
+    g_reconnect_timer_active = true;
+    return true;
+}
+
+static void reconnect_or_scan(void)
+{
+    if (!start_bonded_reconnect()) start_scan();
+}
+
+static void disconnect_current(bool reconnect_bonded)
 {
     const bool was_ready = g_state == BLE_HOGP_STATE_READY;
     if (was_ready && g_vendor_registered)
         g_vendor_backend.session(g_vendor_backend.context, false);
+    g_reconnect_after_disconnect = reconnect_bonded;
     g_state = BLE_HOGP_STATE_DISCONNECTING;
     if (was_ready) (void)publish_status(BLU2USB_BLE_HOGP_MESSAGE_DISCONNECTED);
-    if (g_connection_handle != HCI_CON_HANDLE_INVALID) gap_disconnect(g_connection_handle);
-    else start_scan();
+    if (g_connection_handle != HCI_CON_HANDLE_INVALID) {
+        gap_disconnect(g_connection_handle);
+    } else {
+        g_reconnect_after_disconnect = false;
+        if (reconnect_bonded) reconnect_or_scan();
+        else start_scan();
+    }
+}
+
+static void disconnect_and_rescan(void)
+{
+    disconnect_current(false);
 }
 
 static void connect_hid_service(void)
@@ -207,6 +287,7 @@ static void handle_gatt_client_event(uint8_t packet_type, uint16_t channel,
             return;
         }
         g_state = BLE_HOGP_STATE_READY;
+        g_reconnect_after_disconnect = false;
         if (g_vendor_registered) g_vendor_backend.session(g_vendor_backend.context, true);
         if (!publish_status(BLU2USB_BLE_HOGP_MESSAGE_CONNECTED)) {
             disconnect_and_rescan(); return;
@@ -215,7 +296,8 @@ static void handle_gatt_client_event(uint8_t packet_type, uint16_t channel,
         break;
     }
     case GATTSERVICE_SUBEVENT_HID_SERVICE_DISCONNECTED:
-        if (g_state != BLE_HOGP_STATE_DISCONNECTING) disconnect_and_rescan();
+        if (g_state != BLE_HOGP_STATE_DISCONNECTING)
+            disconnect_current(g_state == BLE_HOGP_STATE_READY);
         break;
     case GATTSERVICE_SUBEVENT_HID_REPORT: {
         if (g_state != BLE_HOGP_STATE_READY) break;
@@ -253,7 +335,7 @@ static void hci_packet_handler(uint8_t packet_type, uint16_t channel,
     switch (hci_event_packet_get_type(packet)) {
     case BTSTACK_EVENT_STATE:
         if (btstack_event_state_get_state(packet) == HCI_STATE_WORKING &&
-            g_state == BLE_HOGP_STATE_WAITING_FOR_STACK) start_scan();
+            g_state == BLE_HOGP_STATE_WAITING_FOR_STACK) reconnect_or_scan();
         break;
     case GAP_EVENT_ADVERTISING_REPORT: {
         if (g_state != BLE_HOGP_STATE_SCANNING || !advertisement_has_hid_service(packet)) break;
@@ -264,17 +346,27 @@ static void hci_packet_handler(uint8_t packet_type, uint16_t channel,
         if (address_is_rejected(address, type)) break;
         if (appearance_is_explicit_non_mouse_hid(appearance)) { reject_address(address, type); break; }
         gap_stop_scan();
+        stop_reconnect_timer();
         memcpy(g_remote_address, address, sizeof(bd_addr_t));
         g_remote_address_type = type;
+        g_reconnect_cancel_pending = false;
         g_state = BLE_HOGP_STATE_CONNECTING;
-        gap_connect(g_remote_address, g_remote_address_type);
+        if (gap_connect(g_remote_address, g_remote_address_type) != ERROR_CODE_SUCCESS)
+            start_scan();
         break;
     }
     case HCI_EVENT_META_GAP:
         if (hci_event_gap_meta_get_subevent_code(packet) == GAP_SUBEVENT_LE_CONNECTION_COMPLETE &&
             g_state == BLE_HOGP_STATE_CONNECTING) {
+            stop_reconnect_timer();
             const uint8_t status = gap_subevent_le_connection_complete_get_status(packet);
-            if (status != ERROR_CODE_SUCCESS) { g_connection_handle = HCI_CON_HANDLE_INVALID; start_scan(); break; }
+            if (status != ERROR_CODE_SUCCESS) {
+                g_connection_handle = HCI_CON_HANDLE_INVALID;
+                g_reconnect_cancel_pending = false;
+                start_scan();
+                break;
+            }
+            g_reconnect_cancel_pending = false;
             g_connection_handle = gap_subevent_le_connection_complete_get_connection_handle(packet);
             g_state = BLE_HOGP_STATE_SECURING;
             sm_request_pairing(g_connection_handle);
@@ -282,12 +374,16 @@ static void hci_packet_handler(uint8_t packet_type, uint16_t channel,
         break;
     case HCI_EVENT_DISCONNECTION_COMPLETE: {
         const bool was_ready = g_state == BLE_HOGP_STATE_READY;
+        const bool reconnect_bonded = was_ready || g_reconnect_after_disconnect;
+        stop_reconnect_timer();
         if (was_ready && g_vendor_registered) g_vendor_backend.session(g_vendor_backend.context, false);
         g_connection_handle = HCI_CON_HANDLE_INVALID;
         g_hids_cid = 0u;
         memset(&g_parser, 0, sizeof(g_parser));
         if (was_ready) (void)publish_status(BLU2USB_BLE_HOGP_MESSAGE_DISCONNECTED);
-        start_scan();
+        g_reconnect_after_disconnect = false;
+        if (reconnect_bonded) reconnect_or_scan();
+        else start_scan();
         break;
     }
     default: break;
@@ -322,15 +418,21 @@ static void ble_hogp_session_setup(void)
 {
     memset(&g_parser, 0, sizeof(g_parser));
     memset(g_rejected_devices, 0, sizeof(g_rejected_devices));
+    memset(g_remote_address, 0, sizeof(g_remote_address));
+    g_remote_address_type = BD_ADDR_TYPE_UNKNOWN;
     g_rejected_next = 0u;
     g_state = BLE_HOGP_STATE_WAITING_FOR_STACK;
     g_connection_handle = HCI_CON_HANDLE_INVALID;
     g_hids_cid = 0u;
+    g_reconnect_timer_active = false;
+    g_reconnect_cancel_pending = false;
+    g_reconnect_after_disconnect = false;
     hids_client_init(g_descriptor_storage, sizeof(g_descriptor_storage));
     g_hci_registration.callback = &hci_packet_handler;
     hci_add_event_handler(&g_hci_registration);
     g_sm_registration.callback = &sm_packet_handler;
     sm_add_event_handler(&g_sm_registration);
+    btstack_run_loop_set_timer_handler(&g_reconnect_timer, reconnect_timeout_handler);
     btstack_run_loop_set_timer_handler(&g_vendor_timer, vendor_timer_handler);
     btstack_run_loop_set_timer(&g_vendor_timer, BLE_HOGP_VENDOR_SERVICE_MS);
     btstack_run_loop_add_timer(&g_vendor_timer);
