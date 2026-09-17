@@ -31,6 +31,19 @@ static void assert_row_tone(const blu2usb_ui_frame_t *frame,
     assert(found);
 }
 
+static void assert_row_text(const blu2usb_ui_frame_t *frame,
+                            unsigned row,
+                            const char *expected)
+{
+    char actual[BLU2USB_RENDERER_TEXT_COLS + 1u];
+    unsigned end = BLU2USB_RENDERER_TEXT_COLS;
+    for (unsigned column = 0u; column < BLU2USB_RENDERER_TEXT_COLS; ++column)
+        actual[column] = frame->cells[row][column].character;
+    while (end > 0u && actual[end - 1u] == ' ') --end;
+    actual[end] = '\0';
+    assert(strcmp(actual, expected) == 0);
+}
+
 static void assert_success_body_is_cyan(const blu2usb_ux_model_t *ux)
 {
     blu2usb_ui_frame_t frame;
@@ -60,6 +73,24 @@ static void test_current_profile_opens_feedback_and_back_once(void)
     assert(ux.screen == BLU2USB_SCREEN_MOUSE_OPTIONS);
 }
 
+static void test_selected_active_profile_is_white_then_returns_cyan(void)
+{
+    blu2usb_ux_model_t ux;
+    blu2usb_ui_frame_t frame;
+    blu2usb_ux_init(&ux);
+    ux.active_profile = BLU2USB_MOUSE_PROFILE_DEFAULT_REMAP;
+    ux.screen = BLU2USB_SCREEN_MOUSE_OPTIONS;
+    ux.selection = 2u;
+
+    project_physical(&ux, &frame);
+    assert_row_tone(&frame, 3u, BLU2USB_UI_TONE_EMPHASIZED);
+    assert(blu2usb_renderer_tone_rgb565(BLU2USB_UI_TONE_EMPHASIZED) == BLU2USB_COLOR_WHITE);
+
+    ux.selection = 1u;
+    project_physical(&ux, &frame);
+    assert_row_tone(&frame, 3u, BLU2USB_UI_TONE_CURRENT);
+}
+
 static void test_default_apply_feedback_back_and_reentry(void)
 {
     blu2usb_ux_model_t ux;
@@ -81,10 +112,13 @@ static void test_default_apply_feedback_back_and_reentry(void)
     press_release(&ux, BLU2USB_CONTROL_KEY_B);
     assert(ux.screen == BLU2USB_SCREEN_MOUSE_OPTIONS);
 
-    ux.selection = 2u;
+    ux.selection = 1u;
     project_physical(&ux, &frame);
     assert_row_tone(&frame, 3u, BLU2USB_UI_TONE_CURRENT);
 
+    ux.selection = 2u;
+    project_physical(&ux, &frame);
+    assert_row_tone(&frame, 3u, BLU2USB_UI_TONE_EMPHASIZED);
     press_release(&ux, BLU2USB_CONTROL_JOY_PRESS);
     assert(ux.screen == BLU2USB_SCREEN_DEFAULT_APPLIED);
     assert_success_body_is_cyan(&ux);
@@ -111,10 +145,13 @@ static void test_escape_apply_feedback_back_and_reentry(void)
     press_release(&ux, BLU2USB_CONTROL_KEY_B);
     assert(ux.screen == BLU2USB_SCREEN_MOUSE_OPTIONS);
 
-    ux.selection = 3u;
+    ux.selection = 2u;
     project_physical(&ux, &frame);
     assert_row_tone(&frame, 4u, BLU2USB_UI_TONE_CURRENT);
 
+    ux.selection = 3u;
+    project_physical(&ux, &frame);
+    assert_row_tone(&frame, 4u, BLU2USB_UI_TONE_EMPHASIZED);
     press_release(&ux, BLU2USB_CONTROL_JOY_PRESS);
     assert(ux.screen == BLU2USB_SCREEN_ESCAPE_APPLIED);
 }
@@ -137,6 +174,43 @@ static void test_screen_text_fixes_profile_contract(void)
     assert(strcmp(e->rows[5], "MIDDLE IS FORWARD") == 0);
 }
 
+static void test_custom_target_apply_and_back_updates_edit_screen(void)
+{
+    blu2usb_ux_model_t ux;
+    blu2usb_ui_frame_t frame;
+    blu2usb_ux_init(&ux);
+    ux.screen = BLU2USB_SCREEN_MOUSE_OPTIONS;
+    ux.selection = 4u;
+
+    press_release(&ux, BLU2USB_CONTROL_JOY_PRESS);
+    assert(ux.screen == BLU2USB_SCREEN_EDIT_CUSTOM);
+    assert(ux.selection == 0u);
+
+    project_physical(&ux, &frame);
+    assert_row_text(&frame, 1u, " LEFT IS LEFT");
+
+    press_release(&ux, BLU2USB_CONTROL_JOY_PRESS);
+    assert(ux.screen == BLU2USB_SCREEN_LEFT_WILL_BECOME);
+    assert(ux.selection == (unsigned)BLU2USB_MOUSE_TARGET_LEFT);
+
+    press_release(&ux, BLU2USB_CONTROL_JOY_DOWN);
+    assert(ux.selection == (unsigned)BLU2USB_MOUSE_TARGET_RIGHT);
+
+    const blu2usb_ux_command_t command = press_release(&ux, BLU2USB_CONTROL_KEY_A);
+    assert(command.kind == BLU2USB_UX_COMMAND_CUSTOM_SET_TARGET);
+    assert(command.source == BLU2USB_MOUSE_SOURCE_LEFT);
+    assert(command.target == BLU2USB_MOUSE_TARGET_RIGHT);
+    assert(ux.screen == BLU2USB_SCREEN_EDIT_CUSTOM);
+
+    /* Mirror the runtime command handler after the draft engine accepts it. */
+    blu2usb_ux_set_custom_target(&ux, command.source, command.target);
+    assert(ux.custom_targets[BLU2USB_MOUSE_SOURCE_LEFT] == BLU2USB_MOUSE_TARGET_RIGHT);
+    assert(ux.custom_dirty);
+
+    project_physical(&ux, &frame);
+    assert_row_text(&frame, 1u, " LEFT IS RIGHT");
+}
+
 static void test_custom_success_hides_apply_hint(void)
 {
     blu2usb_ux_model_t ux;
@@ -156,21 +230,27 @@ static void test_custom_success_hides_apply_hint(void)
     assert(!ux.custom_dirty);
 
     project_physical(&ux, &frame);
-    for (unsigned row = 1u; row <= 5u; ++row)
+    assert_row_tone(&frame, 1u, BLU2USB_UI_TONE_EMPHASIZED);
+    for (unsigned row = 2u; row <= 5u; ++row)
         assert_row_tone(&frame, row, BLU2USB_UI_TONE_CURRENT);
     for (unsigned column = 0; column < BLU2USB_RENDERER_TEXT_COLS; ++column)
         assert(frame.cells[8][column].character == ' ');
 
     press_release(&ux, BLU2USB_CONTROL_KEY_B);
     assert(ux.screen == BLU2USB_SCREEN_MOUSE_OPTIONS);
-    ux.selection = 4u;
+    ux.selection = 3u;
     project_physical(&ux, &frame);
     assert_row_tone(&frame, 5u, BLU2USB_UI_TONE_CURRENT);
 
+    ux.selection = 4u;
+    project_physical(&ux, &frame);
+    assert_row_tone(&frame, 5u, BLU2USB_UI_TONE_EMPHASIZED);
     press_release(&ux, BLU2USB_CONTROL_JOY_PRESS);
     assert(ux.screen == BLU2USB_SCREEN_EDIT_CUSTOM);
     assert(!ux.custom_dirty);
     project_physical(&ux, &frame);
+    assert_row_tone(&frame, 1u, BLU2USB_UI_TONE_EMPHASIZED);
+    assert_row_tone(&frame, 2u, BLU2USB_UI_TONE_CURRENT);
     for (unsigned column = 0; column < BLU2USB_RENDERER_TEXT_COLS; ++column)
         assert(frame.cells[8][column].character == ' ');
 }
@@ -178,9 +258,11 @@ static void test_custom_success_hides_apply_hint(void)
 int main(void)
 {
     test_current_profile_opens_feedback_and_back_once();
+    test_selected_active_profile_is_white_then_returns_cyan();
     test_default_apply_feedback_back_and_reentry();
     test_escape_apply_feedback_back_and_reentry();
     test_screen_text_fixes_profile_contract();
+    test_custom_target_apply_and_back_updates_edit_screen();
     test_custom_success_hides_apply_hint();
     return 0;
 }
