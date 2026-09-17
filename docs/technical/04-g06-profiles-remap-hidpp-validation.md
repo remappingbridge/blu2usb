@@ -10,6 +10,8 @@ Bluetooth Keyboard pairing/input is not part of G06. The USB Keyboard interface 
 
 ## Frozen profile contract
 
+The LCD `APPLY ...` screen is normative: the runtime mapping must exactly match the relationships printed on that screen.
+
 - `PASSTHROUGH`: Left→Left, Right→Right, Middle→Middle, Forward→Forward, Backward→Backward.
 - `DEFAULT REMAP`: Left→Forward, Right→Backward, Middle→Middle, Forward→Left, Backward→Right.
 - `ESCAPE REMAP`: Left→Escape, Right→Backward, Middle→Forward, Forward→Left, Backward→Right.
@@ -20,12 +22,29 @@ Bluetooth Keyboard pairing/input is not part of G06. The USB Keyboard interface 
 
 ## Profile feedback contract
 
+- The profiles/remap engine is the source of truth. A profile is only considered successfully applied after the engine has accepted the full mapping.
 - Cyan is the general success/current-state color for applied configuration values.
-- After a successful profile apply, the yellow/static configuration text on the feedback screen becomes cyan.
-- In `MOUSE OPTIONS`, the currently active profile row is cyan.
-- Entering the already-active Passthrough, Default Remap or Escape Remap opens its feedback/applied screen directly, without an Apply hint.
+- After a successful profile apply, every visible body line describing the resulting configuration on the feedback screen is cyan instead of yellow.
+- In `MOUSE OPTIONS`, the currently active profile row is cyan and remains cyan even if the selection cursor is resting on that same row.
+- Entering the already-active Passthrough, Default Remap or Escape Remap opens its feedback/applied screen directly, without a `KEY A: APPLY` hint.
 - Entering an already-active Custom Remap shows the current Custom configuration without the `KEY A: APPLY CUSTOM` hint until a Custom target is changed.
-- `KEY B` from any profile feedback screen returns to `MOUSE OPTIONS` on the first press.
+- `KEY B` from any profile feedback screen returns directly to `MOUSE OPTIONS` on the first complete press/release. It must never return to the corresponding Apply page.
+
+## Inherited regression contract
+
+The physically accepted corrections from earlier gates remain mandatory in G06 and every later gate:
+
+- retained pixel relocation applies to all screens regardless of wording changes;
+- on `PRESS TO LEARN A KEY`, `KEY A`, `KEY B`, and `KEY X` start at 1-based column 16;
+- `KEY B` is always one-screen Back outside HOME/LEARN, even when the visible word is `CANCEL` or another context label;
+- there is no `GO TO HOME` action; reaching HOME through Back is only a consequence of one-screen navigation;
+- hidden controls remain functional where the screen contract declares them;
+- lock occurs on Key Y release; the unlock interaction is consumed and returns to HOME;
+- Pair help is exactly `KEY X: HELP`; `KEY C: HELP` is invalid;
+- the Learn title is exactly `PRESS TO LEARN A KEY`;
+- the fixed USB Mouse + Keyboard identity remains stable and must not re-enumerate due to Bluetooth or profile changes;
+- BLE Mouse input continues while the LCD is locked;
+- disconnect/overflow/profile changes release persistent HID ownership so Mouse buttons or synthetic Keyboard keys cannot remain stuck.
 
 ## HID++ contract
 
@@ -40,19 +59,20 @@ Bluetooth Keyboard pairing/input is not part of G06. The USB Keyboard interface 
 CI must prove:
 
 1. all G02–G05 regression tests remain green;
-2. preset mappings match the frozen contract and Default is distinct from Escape Remap;
+2. preset mappings match the frozen screen contract and Default is distinct from Escape Remap;
 3. Custom draft/commit supports Escape and validates serialized profile data;
 4. Mouse→Mouse remapping produces canonical target button events;
 5. Mouse→Escape produces synthetic canonical Keyboard Escape press/release events;
 6. source-aware aggregation prevents stuck Mouse/Keyboard ownership after remap transitions;
-7. successful profile feedback and the active `MOUSE OPTIONS` row render cyan;
-8. an already-active profile opens feedback without an Apply hint and `KEY B` leaves feedback on the first press;
-9. HID++ feature discovery and Forward diversion request bytes match the frozen feature/CID contract;
-10. HID++ held/released events become canonical Forward transitions only after diversion is acknowledged;
-11. unsupported HID++ transport writes fail safe to standard HOGP behavior;
-12. profiles/remap/HID++ state-machine cores stay free of Pico SDK, TinyUSB, BTstack and raw report-layout dependencies;
-13. the application contains no raw TinyUSB/BTstack/GPIO/SPI primitives and there is no forced USB re-enumeration path;
-14. Pico 2 W production cross-build produces a non-empty UF2.
+7. successful profile feedback and the active `MOUSE OPTIONS` row render cyan after final visual precedence is applied;
+8. an already-active profile opens feedback without an Apply hint and `KEY B` leaves feedback for `MOUSE OPTIONS` on the first press/release;
+9. the screen contract preserves the accepted Learn geometry, Key-X help label, one-screen Back rule, and absence of `GO TO HOME`;
+10. HID++ feature discovery and Forward diversion request bytes match the frozen feature/CID contract;
+11. HID++ held/released events become canonical Forward transitions only after diversion is acknowledged;
+12. unsupported HID++ transport writes fail safe to standard HOGP behavior;
+13. profiles/remap/HID++ state-machine cores stay free of Pico SDK, TinyUSB, BTstack and raw report-layout dependencies;
+14. the application contains no raw TinyUSB/BTstack/GPIO/SPI primitives and there is no forced USB re-enumeration path;
+15. Pico 2 W production cross-build produces a non-empty UF2.
 
 ## Physical scenarios
 
@@ -64,7 +84,7 @@ Flash G06 and power-cycle. The first LCD page remains `PRESS TO LEARN A KEY`; th
 
 ### G06-02 — PASSTHROUGH and success feedback
 
-Navigate to Mouse Options → Passthrough. Because Passthrough is the initial profile, it must open the applied/feedback screen directly with no Apply hint. Its configuration text is cyan. Left, Right, Middle, Backward and Forward keep their native meanings. `KEY B` returns to Mouse Options on the first press, where `PASSTHROUGH` is cyan.
+Navigate to Mouse Options → Passthrough. Because Passthrough is the initial profile, it must open the applied/feedback screen directly with no Apply hint. Its configuration text is cyan. Left, Right, Middle, Backward and Forward keep their native meanings. `KEY B` returns to Mouse Options on the first press/release, where `PASSTHROUGH` is cyan.
 
 ### G06-03 — DEFAULT REMAP exact mapping
 
@@ -76,7 +96,7 @@ Navigate to Mouse Options → Default Remap and apply it. Validate the exact map
 - Forward generates Mouse Left;
 - Backward generates Mouse Right.
 
-After Apply, the feedback configuration text is cyan. `KEY B` returns to Mouse Options on the first press and `DEFAULT REMAP` is cyan. Re-entering Default Remap opens the feedback screen directly without an Apply hint.
+After Apply, every configuration line on the feedback screen is cyan. `KEY B` returns directly to Mouse Options on the first press/release and `DEFAULT REMAP` is cyan there. Re-entering Default Remap opens the feedback screen directly without an Apply hint.
 
 ### G06-04 — ESCAPE REMAP exact mapping
 
@@ -88,7 +108,7 @@ Apply Escape Remap and validate:
 - Forward generates Mouse Left;
 - Backward generates Mouse Right.
 
-After Apply, the feedback configuration text is cyan. `KEY B` returns on the first press and `ESCAPE REMAP` is cyan in Mouse Options. Re-entering Escape Remap opens feedback directly.
+After Apply, every configuration line on the feedback screen is cyan. `KEY B` returns directly to Mouse Options on the first press/release and `ESCAPE REMAP` is cyan there. Re-entering Escape Remap opens feedback directly without an Apply hint.
 
 ### G06-05 — Synthetic Escape press/release
 
