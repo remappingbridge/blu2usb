@@ -8,6 +8,8 @@ This gate also adds the Logitech HID++ `REPROG_CONTROLS_V4` backend needed to pr
 
 Bluetooth Keyboard pairing/input is not part of G06. The USB Keyboard interface is exercised only by synthetic Escape generated from a Mouse mapping.
 
+G06 also owns the live Mouse connection/profile presentation needed to validate these runtime behaviors. Persistent saved-device names/models across power cycles remain a later-gate concern.
+
 ## Frozen profile contract
 
 The LCD `APPLY ...` screen is normative: the runtime mapping must exactly match the relationships printed on that screen.
@@ -22,14 +24,29 @@ The LCD `APPLY ...` screen is normative: the runtime mapping must exactly match 
 
 ## Profile feedback contract
 
-- The profiles/remap engine is the source of truth. A profile is only considered successfully applied after the engine has accepted the full mapping.
+- The profiles/remap engine is the source of truth. A profile is only considered successfully applied after the engine has accepted the full mapping; Apply input alone must not optimistically change the active profile or enter success feedback.
 - Cyan is the general success/current-state color for applied configuration values.
-- After a successful profile apply, every visible body line describing the resulting configuration on the feedback screen is cyan instead of yellow.
+- After a successful preset profile apply, every visible body line describing the resulting configuration on the feedback screen is cyan instead of yellow.
 - In `MOUSE OPTIONS`, the currently active profile row is cyan while not selected.
 - Selection has global visual priority: when the cursor rests on a cyan/current option, that selected row is white; after moving selection away it returns to cyan if it is still current.
 - Entering the already-active Passthrough, Default Remap or Escape Remap opens its feedback/applied screen directly, without a `KEY A: APPLY` hint.
-- Entering an already-active Custom Remap shows the current Custom configuration without the `KEY A: APPLY CUSTOM` hint until a Custom target is changed. In that screen, the selected mapping row is white and the remaining current rows are cyan.
-- `KEY B` from any profile feedback screen returns directly to `MOUSE OPTIONS` on the first complete press/release. It must never return to the corresponding Apply page.
+- Entering an already-active Custom Remap shows the current Custom configuration without the `KEY A: APPLY CUSTOM` hint until a Custom target is changed. In that edit screen, the selected mapping row is white and the remaining current rows are cyan.
+- Successful `KEY A: APPLY CUSTOM` opens the dedicated `CUSTOM APPLIED` screen only after engine confirmation. It displays the five confirmed mapping rows in cyan plus exactly `KEY B: BACK` and `KEY Y: LOCK`.
+- `KEY B` from `PASSTHROUGH APPLIED`, `DEFAULT REMAP APPLIED`, `ESCAPE APPLIED`, or `CUSTOM APPLIED` returns directly to `MOUSE OPTIONS` on the first complete press/release.
+
+## Live Mouse UX contract
+
+BLE HOGP `CONNECTED` and `DISCONNECTED` events are the source of truth for live Mouse connection state.
+
+- On connect, the UI state is updated even if no Mouse movement/button report has occurred yet.
+- On disconnect, the live connected marker is removed while the existing ownership-release behavior remains intact.
+- `MOUSE STATUS` shows exactly `MOUSE CONNECTED` in cyan while connected and `MOUSE NOT CONNECTED` in ordinary off-white yellow while disconnected.
+- Other ordinary `MOUSE STATUS` body text remains off-white yellow.
+- `PROFILE:` always reflects the confirmed active profile using `PASSTHROUGH`, `DEFAULT`, `ESCAPE`, or `CUSTOM`; it must not remain frozen on Passthrough.
+- In `MOUSE OPTIONS`, `PAIR MOUSE` is cyan while a Mouse is connected and the row is not selected. Selection turns it white; moving selection away restores cyan.
+- Accessing `PAIR MOUSE` while already connected opens `MOUSE PAIRED` rather than starting/showing a search.
+- If the Mouse becomes connected while the `PAIR MOUSE` search screen is already visible, the LCD immediately transitions to `MOUSE PAIRED` without requiring another HAT event.
+- `MOUSE PAIRED` shows `MOUSE CONNECTED` and `READY TO USE` in cyan, plus `KEY B: BACK` and `KEY Y: LOCK`; Back returns directly to `MOUSE OPTIONS`.
 
 ## Inherited regression contract
 
@@ -68,25 +85,40 @@ CI must prove:
 7. successful profile feedback is cyan, but any selected cyan/current option is white until selection moves away;
 8. an already-active profile opens feedback without an Apply hint and `KEY B` leaves feedback for `MOUSE OPTIONS` on the first press/release;
 9. `KEY A: APPLY AND BACK` on every `<BUTTON> WILL BECOME` screen updates the Custom draft and the returned `EDIT CUSTOM REMAP` text immediately reflects that accepted target;
-10. the screen contract preserves the accepted Learn geometry, Key-X help label, one-screen Back rule, and absence of `GO TO HOME`;
-11. HID++ feature discovery and Forward diversion request bytes match the frozen feature/CID contract;
-12. HID++ held/released events become canonical Forward transitions only after diversion is acknowledged;
-13. unsupported HID++ transport writes fail safe to standard HOGP behavior;
-14. profiles/remap/HID++ state-machine cores stay free of Pico SDK, TinyUSB, BTstack and raw report-layout dependencies;
-15. the application contains no raw TinyUSB/BTstack/GPIO/SPI primitives and there is no forced USB re-enumeration path;
-16. Pico 2 W production cross-build produces a non-empty UF2.
+10. Custom apply remains on the edit state until runtime confirmation, then opens `CUSTOM APPLIED` with confirmed mappings plus `KEY B: BACK` and `KEY Y: LOCK`;
+11. live Mouse connection state projects `MOUSE CONNECTED` cyan / `MOUSE NOT CONNECTED` yellow and marks `PAIR MOUSE` cyan while connected, with selected-white precedence;
+12. `MOUSE STATUS` projects the confirmed current profile rather than a static Passthrough string;
+13. an already-connected Mouse bypasses the pair-search presentation and uses `MOUSE PAIRED` feedback;
+14. the screen contract preserves the accepted Learn geometry, Key-X help label, one-screen Back rule, and absence of `GO TO HOME`;
+15. HID++ feature discovery and Forward diversion request bytes match the frozen feature/CID contract;
+16. HID++ held/released events become canonical Forward transitions only after diversion is acknowledged;
+17. unsupported HID++ transport writes fail safe to standard HOGP behavior;
+18. profiles/remap/HID++ state-machine cores stay free of Pico SDK, TinyUSB, BTstack and raw report-layout dependencies;
+19. the application contains no raw TinyUSB/BTstack/GPIO/SPI primitives and there is no forced USB re-enumeration path;
+20. Pico 2 W production cross-build produces a non-empty UF2.
 
 ## Physical scenarios
 
 Use the same Pico 2 W + Waveshare HAT/LCD + BLE HOGP Mouse that passed G05. A Logitech Lift or another compatible Logitech HID++ Mouse is only required for the scenarios explicitly marked Logitech-specific.
 
-### G06-01 — G05 regression and fixed USB identity
+### G06-01 — G05 regression, live connection UX and fixed USB identity
 
 Flash G06 and power-cycle. The first LCD page remains `PRESS TO LEARN A KEY`; the BLE Mouse can connect and move/click/scroll as in G05. The host continues exposing the same fixed BLU2USB Mouse + Keyboard USB identity.
+
+After the Mouse connects:
+
+- `STATUS → MOUSE STATUS` must show `MOUSE CONNECTED` in cyan, while `PROFILE: PASSTHROUGH`, `FWD: ...` and `BACK: ...` remain the ordinary yellow status color;
+- `MOUSE OPTIONS` must show `PAIR MOUSE` cyan when another row is selected and white while `PAIR MOUSE` itself is selected;
+- accessing `PAIR MOUSE` while the Mouse is already connected must open `MOUSE PAIRED`, with `MOUSE CONNECTED` and `READY TO USE` cyan, rather than showing a frozen/searching Pair screen;
+- `KEY B: BACK` on `MOUSE PAIRED` must return directly to `MOUSE OPTIONS`.
+
+Also validate the transition case at least once if practical: begin on the searching `PAIR MOUSE` page with the Mouse disconnected, then connect it. The LCD must move to `MOUSE PAIRED` immediately without another HAT press.
 
 ### G06-02 — PASSTHROUGH and success feedback
 
 Navigate to Mouse Options → Passthrough. Because Passthrough is the initial profile, it must open the applied/feedback screen directly with no Apply hint. Its configuration text is cyan. Left, Right, Middle, Backward and Forward keep their native meanings. `KEY B` returns to Mouse Options on the first press/release. In Mouse Options, `PASSTHROUGH` is cyan when another option is selected and white while `PASSTHROUGH` itself is selected.
+
+`MOUSE STATUS` must read `PROFILE: PASSTHROUGH`.
 
 ### G06-03 — DEFAULT REMAP exact mapping
 
@@ -100,6 +132,8 @@ Navigate to Mouse Options → Default Remap and apply it. Validate the exact map
 
 After Apply, every configuration line on the feedback screen is cyan. `KEY B` returns directly to Mouse Options on the first press/release. `DEFAULT REMAP` is cyan while another row is selected and becomes white while its own row is selected. Re-entering Default Remap opens the feedback screen directly without an Apply hint.
 
+`MOUSE STATUS` must now read `PROFILE: DEFAULT`; it must not remain `PROFILE: PASSTHROUGH`.
+
 ### G06-04 — ESCAPE REMAP exact mapping
 
 Apply Escape Remap and validate:
@@ -112,6 +146,8 @@ Apply Escape Remap and validate:
 
 After Apply, every configuration line on the feedback screen is cyan. `KEY B` returns directly to Mouse Options on the first press/release. `ESCAPE REMAP` is cyan while another row is selected and white while its own row is selected. Re-entering Escape Remap opens feedback directly without an Apply hint.
 
+`MOUSE STATUS` must read `PROFILE: ESCAPE`.
+
 ### G06-05 — Synthetic Escape press/release
 
 With Escape Remap or a Custom profile that maps a button to Escape, open a host menu/dialog where Escape is observable. Press and hold the physical mapped button: the remapped Keyboard Escape ownership is held. Release it: Escape is released. Repeated clicks must not leave the USB Keyboard in a held state.
@@ -120,7 +156,9 @@ With Escape Remap or a Custom profile that maps a button to Escape, open a host 
 
 Open Custom Remap. Before applying the complete Custom profile, validate draft reflection explicitly: select `LEFT IS LEFT`, enter `LEFT WILL BECOME`, choose `RIGHT`, then release `KEY A: APPLY AND BACK`. On return to `EDIT CUSTOM REMAP`, the first row must immediately read `LEFT IS RIGHT`. Repeat with at least one additional source, including one target mapped to `ESCAPE`.
 
-Then apply Custom. Both mappings must take effect simultaneously while X/Y/wheel remain unchanged. After Apply, the current Custom configuration is shown as successful/current: the selected mapping row is white, the remaining current mapping rows are cyan, and the Apply Custom hint is absent until another target is changed. Back once returns to Mouse Options, where `CUSTOM REMAP` follows the same rule: cyan when not selected, white when selected.
+Then release `KEY A: APPLY CUSTOM`. The UI must not claim success before the profile engine accepts the full Custom configuration. On successful confirmation it must open a dedicated page titled exactly `CUSTOM APPLIED`. The five confirmed mappings are cyan and the visible hints are exactly `KEY B: BACK` and `KEY Y: LOCK`. Both mappings must take effect simultaneously while X/Y/wheel remain unchanged.
+
+`KEY B` from `CUSTOM APPLIED` returns directly to `MOUSE OPTIONS`, where `CUSTOM REMAP` is cyan when not selected and white when selected. `MOUSE STATUS` must read `PROFILE: CUSTOM`. Re-entering Custom opens `EDIT CUSTOM REMAP` with the current mappings and no `KEY A: APPLY CUSTOM` hint until a target changes.
 
 ### G06-07 — Profile change while a mapped control was active
 
