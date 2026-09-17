@@ -3,6 +3,10 @@
 #include <string.h>
 
 static bool g_mouse_connected;
+static bool g_keyboard_connected;
+static bool g_keyboard_pair_code_valid;
+static uint32_t g_keyboard_pair_code_value;
+static uint8_t g_keyboard_pair_code_digits;
 
 static bool valid_profile(blu2usb_mouse_profile_kind_t profile)
 {
@@ -23,6 +27,40 @@ void blu2usb_ux_set_mouse_connected(bool connected)
 bool blu2usb_ux_mouse_connected(void)
 {
     return g_mouse_connected;
+}
+
+void blu2usb_ux_set_keyboard_connected(bool connected)
+{
+    g_keyboard_connected = connected;
+    if (connected) blu2usb_ux_clear_keyboard_pair_code();
+}
+
+bool blu2usb_ux_keyboard_connected(void)
+{
+    return g_keyboard_connected;
+}
+
+void blu2usb_ux_set_keyboard_pair_code(uint32_t value, uint8_t digits)
+{
+    if (digits != 4u && digits != 6u) return;
+    g_keyboard_pair_code_value = value;
+    g_keyboard_pair_code_digits = digits;
+    g_keyboard_pair_code_valid = true;
+}
+
+void blu2usb_ux_clear_keyboard_pair_code(void)
+{
+    g_keyboard_pair_code_valid = false;
+    g_keyboard_pair_code_value = 0u;
+    g_keyboard_pair_code_digits = 0u;
+}
+
+bool blu2usb_ux_keyboard_pair_code(uint32_t *value, uint8_t *digits)
+{
+    if (!g_keyboard_pair_code_valid) return false;
+    if (value != NULL) *value = g_keyboard_pair_code_value;
+    if (digits != NULL) *digits = g_keyboard_pair_code_digits;
+    return true;
 }
 
 void blu2usb_ux_restore_profile_state(
