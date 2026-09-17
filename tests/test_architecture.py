@@ -128,7 +128,7 @@ def check_source_boundaries() -> None:
             fail(f"app contains raw transport/HAL primitive: {rel}")
 
         if reenumeration_token.search(text):
-            fail(f"USB re-enumeration path is prohibited in G04: {rel}")
+            fail(f"USB re-enumeration path is prohibited: {rel}")
 
 
 def check_g04_usb_contract() -> None:
@@ -150,6 +150,47 @@ def check_g04_usb_contract() -> None:
     for disabled in ("CFG_TUD_CDC 0", "CFG_TUD_MSC 0", "CFG_TUD_MIDI 0", "CFG_TUD_VENDOR 0"):
         if disabled not in config:
             fail(f"unexpected USB function enabled or unspecified: {disabled}")
+
+
+def check_g05_canonical_hid_contract() -> None:
+    cmake = (ROOT / "CMakeLists.txt").read_text(encoding="utf-8")
+    for token in (
+        "add_library(blu2usb_hid_aggregator STATIC src/hid_aggregator/hid_aggregator.c)",
+        "target_link_libraries(blu2usb_module_hid_aggregator INTERFACE blu2usb_hid_aggregator)",
+        'BLU2USB_VERSION_STRING="0.5.0-g05"',
+    ):
+        if token not in cmake:
+            fail(f"G05 canonical HID integration missing: {token}")
+
+    domain_hid = ROOT / "include" / "blu2usb" / "domain" / "hid.h"
+    aggregator_h = ROOT / "include" / "blu2usb" / "hid_aggregator" / "hid_aggregator.h"
+    aggregator_c = ROOT / "src" / "hid_aggregator" / "hid_aggregator.c"
+    for path in (domain_hid, aggregator_h, aggregator_c):
+        if not path.is_file():
+            fail(f"G05 canonical HID file missing: {path.relative_to(ROOT)}")
+
+    hid_text = domain_hid.read_text(encoding="utf-8")
+    for token in (
+        "BLU2USB_HID_SOURCE_MOUSE",
+        "BLU2USB_HID_SOURCE_KEYBOARD",
+        "BLU2USB_HID_SOURCE_COMPOSITE",
+        "BLU2USB_HID_SOURCE_SYNTHETIC_REMAP",
+    ):
+        if token not in hid_text:
+            fail(f"missing canonical HID source kind: {token}")
+
+    aggregator_text = aggregator_h.read_text(encoding="utf-8") + "\n" + aggregator_c.read_text(encoding="utf-8")
+    if "BLU2USB_HID_AGGREGATOR_MAX_SOURCES 16u" not in aggregator_text:
+        fail("G05 must support 16 persistent ownership sources")
+
+    canonical_lower = (hid_text + "\n" + aggregator_text).lower()
+    for token in (
+        "btstack", "cyw43", "tinyusb", "tusb.h", "tud_", "hid_host",
+        "hardware/gpio", "hardware/spi", "pico/stdlib", "report_id",
+        "descriptor_report", "remote_report",
+    ):
+        if token in canonical_lower:
+            fail(f"G05 canonical HID boundary contains forbidden transport/layout token: {token}")
 
 
 def check_production_debug_prohibition() -> None:
@@ -210,9 +251,10 @@ def main() -> int:
     parse_module_graph()
     check_source_boundaries()
     check_g04_usb_contract()
+    check_g05_canonical_hid_contract()
     check_production_debug_prohibition()
     check_toolchain_lock()
-    print("BLU2USB-G04 architecture contract: OK")
+    print("BLU2USB-G05 architecture contract: OK")
     return 0
 
 
