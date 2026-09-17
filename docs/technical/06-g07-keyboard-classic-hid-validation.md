@@ -52,6 +52,19 @@ The production `btstack_config.h` therefore freezes at least:
 
 These are runtime requirements, not build-only conveniences. A build that silently returns to one HCI connection or zero Classic link-key slots is a G07 regression even if CI still compiles.
 
+## Shared-radio discovery arbitration
+
+The CYW43 is shared by BLE HOGP Mouse and BR/EDR Classic HID Keyboard. `PAIR KEYBOARD` therefore has explicit discovery priority while the Classic transaction is active:
+
+- if BLE is only scanning for a Mouse, that LE scan is stopped before Classic inquiry begins;
+- if BLE is attempting an outgoing bonded reconnect, that initiation is cancelled and Classic waits until the controller is quiescent;
+- an already-ready BLE Mouse session is **not disconnected**; the Classic inquiry/connection runs alongside the existing Mouse ACL, as proven by the original PICO-08 coexistence implementation;
+- if `gap_inquiry_start()` temporarily reports controller busy, the pairing transaction remains active and automatically retries from the BTstack run-loop every 50 ms instead of consuming the request and freezing the UI on `SEARCHING KEYBOARD`;
+- after Keyboard success or cancellation, BLE discovery/reconnect resumes automatically when no Mouse is already ready;
+- HCI disconnect events are ownership-filtered: a Classic Keyboard disconnect must never be interpreted as the BLE Mouse disconnect, and vice versa.
+
+The application layer remains transport-neutral and does not call raw GAP primitives.
+
 ## Pairing contract without terminal
 
 Physical acceptance must not require UART, serial console or USB CDC.
@@ -109,49 +122,53 @@ G07 does not require the later persistent saved-device registry or autonomous pr
 
 Flash the final G07 UF2 and power-cycle. Confirm Learn/HAT behavior, the previously accepted Mouse connection/remap path and fixed `BLU2USB Mouse + Keyboard` USB identity remain functional. Bluetooth activity must not cause USB re-enumeration.
 
-### G07-02 — Pair BKB-3G through logical Pair Keyboard
+### G07-02 — Pair BKB-3G with Mouse absent
 
-Navigate `HOME -> OTHER OPTIONS -> PAIR KEYBOARD`. Put the BKB-3G in pairing mode on the desired channel (`FN+1`, `FN+2` or `FN+3` until its pairing LED blinks).
+Keep the BLE Mouse powered off/unavailable. Navigate `HOME -> OTHER OPTIONS -> PAIR KEYBOARD`. Put the BKB-3G in pairing mode on the desired channel (`FN+1`, `FN+2` or `FN+3` until its pairing LED blinks).
 
-Expected: no Classic/BLE transport choice is displayed. The Pico must discover and open the BKB-3G Classic HID connection even when the BLE Mouse path is also enabled. If a PIN appears on the LCD, type that exact PIN on the BKB-3G and press Enter. Pairing ends on `KEYBOARD SAVED` with positive body cyan. Press `KEY B` once and confirm the UI returns directly to `OTHER OPTIONS`.
+Expected: BLE discovery is quiesced and the Pico repeatedly maintains a real Classic inquiry until the BKB-3G is found or the operator cancels. The screen must not remain falsely frozen on `SEARCHING KEYBOARD` after an inquiry-start failure. If a PIN appears on the LCD, type that exact PIN on the BKB-3G and press Enter. Pairing ends on `KEYBOARD SAVED` with positive body cyan. Press `KEY B` once and confirm the UI returns directly to `OTHER OPTIONS`.
 
-### G07-03 — Representative typing
+### G07-03 — Pair BKB-3G while Mouse is already connected
+
+First connect the accepted BLE Mouse and verify normal movement. Then enter `PAIR KEYBOARD` and put the BKB-3G into pairing mode.
+
+Expected: the existing Mouse connection is preserved while Classic inquiry/pairing proceeds. Keyboard reaches `KEYBOARD SAVED`; Mouse remains usable before, during and after Keyboard pairing.
+
+### G07-04 — Representative typing
 
 Open an ordinary host text editor/input. Verify letters, numbers, Space, Enter and Backspace. No terminal/serial observation is part of acceptance.
 
-### G07-04 — Modifiers and hold/release
+### G07-05 — Modifiers and hold/release
 
 Verify at least Shift+letter and Ctrl/Alt combination in an ordinary host GUI. Hold a normal key and release it; no key may remain stuck.
 
-### G07-05 — Physical Keyboard + synthetic Escape coexistence
+### G07-06 — Physical Keyboard + synthetic Escape coexistence
 
 Use a Mouse profile/Custom mapping that emits synthetic Escape. While a physical Keyboard key is held, trigger and release synthetic Escape, and reverse the order. Where practical, hold physical Escape and trigger mapped Escape so both own the same target.
 
 Expected: releasing either owner alone never prematurely releases the other.
 
-### G07-06 — Keyboard disconnect while held
+### G07-07 — Keyboard disconnect while held / Mouse ownership isolation
 
-Hold a Keyboard key, turn off/disconnect the BKB-3G, then release/restore it.
+With Mouse and Keyboard connected, hold a Keyboard key and turn off/disconnect the BKB-3G.
 
-Expected: host state is released immediately; no stuck key remains. Mouse movement/buttons and current Mouse profile remain functional.
+Expected: host Keyboard state is released immediately; no stuck key remains. The BLE Mouse must remain logically connected and usable. A Classic disconnect event must not clear the Mouse connection state or current Mouse profile.
 
-### G07-07 — Pair/reconnect recovery in the same boot
+### G07-08 — Pair/reconnect recovery in the same boot
 
 After a Keyboard disconnect, return to `PAIR KEYBOARD` and make the keyboard available again. The UI/HAT must remain responsive and the Keyboard must become usable again. Autonomous persisted Keyboard reconnect after a Pico power cycle is not required by G07.
 
-### G07-08 — Lock while Keyboard is active
+### G07-09 — Lock while Keyboard is active
 
 Lock the LCD with Key Y while Keyboard and Mouse are connected. Type and use the Mouse while locked.
 
 Expected: forwarding continues. The first HAT interaction only unlocks and returns HOME; it does not execute its normal action.
 
-### G07-09 — Keyboard live UX colors
+### G07-10 — Keyboard live UX colors and cancellation/help responsiveness
 
 With the Keyboard connected, verify `OTHER DEVICES STATUS` reports `CONNECTED` cyan. In `OTHER OPTIONS`, `PAIR KEYBOARD` is cyan while unselected, white while selected, and returns to cyan after selection moves away.
 
-### G07-10 — Cancellation/help responsiveness
-
-Start Pair Keyboard with the target unavailable. Open/close Help and cancel with Key B. HAT remains responsive and cancellation returns one logical page without freezing Mouse/USB forwarding.
+Then disconnect the Keyboard, start `PAIR KEYBOARD` with the target unavailable, open/close Help and cancel with Key B. HAT remains responsive, BLE Mouse discovery/reconnect resumes after cancellation, and cancellation returns one logical page without freezing Mouse/USB forwarding.
 
 ## Gate close
 
