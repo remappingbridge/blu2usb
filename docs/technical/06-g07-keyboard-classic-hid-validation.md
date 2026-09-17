@@ -33,6 +33,8 @@ The Classic adapter:
 - releases every held physical Keyboard key/modifier on disconnect or runtime overflow;
 - contains no TinyUSB descriptor/report ownership and no UI code.
 
+BLE and Classic are compiled into one shared BTstack runtime image. Protocol adapters receive the BTstack headers/feature defines but do not independently materialize duplicate HCI/L2CAP/base objects.
+
 ## Pairing contract without terminal
 
 Physical acceptance must not require UART, serial console or USB CDC.
@@ -77,7 +79,8 @@ While Keyboard is connected:
 
 - `OTHER DEVICES STATUS` shows `KEYBOARD` / `CONNECTED`, with `CONNECTED` cyan;
 - `PAIR KEYBOARD` in `OTHER OPTIONS` is cyan while unselected and white while selected;
-- successful pairing opens `KEYBOARD SAVED`, whose positive body is cyan.
+- successful pairing opens `KEYBOARD SAVED`, whose positive body is cyan;
+- `KEY B` from `KEYBOARD SAVED` returns directly to `OTHER OPTIONS`, never back into the pairing transaction.
 
 When Keyboard disconnects, status returns to `NOT CONNECTED` in ordinary status color and the `PAIR KEYBOARD` current marker is removed.
 
@@ -93,7 +96,7 @@ Flash the final G07 UF2 and power-cycle. Confirm Learn/HAT behavior, the previou
 
 Navigate `HOME -> OTHER OPTIONS -> PAIR KEYBOARD`. Put the BKB-3G in pairing mode on the desired channel (`FN+1`, `FN+2` or `FN+3` until its pairing LED blinks).
 
-Expected: no Classic/BLE transport choice is displayed. If a PIN appears on the LCD, type that exact PIN on the BKB-3G and press Enter. Pairing ends on `KEYBOARD SAVED` with positive body cyan.
+Expected: no Classic/BLE transport choice is displayed. If a PIN appears on the LCD, type that exact PIN on the BKB-3G and press Enter. Pairing ends on `KEYBOARD SAVED` with positive body cyan. Press `KEY B` once and confirm the UI returns directly to `OTHER OPTIONS`.
 
 ### G07-03 — Representative typing
 
