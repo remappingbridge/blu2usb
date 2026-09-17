@@ -117,10 +117,14 @@ if(BLU2USB_BUILD_PICO)
     target_sources(blu2usb_storage PRIVATE src/storage/storage_pico.c)
     target_link_libraries(blu2usb_storage PRIVATE pico_stdlib pico_flash hardware_flash)
 
+    # G07 owns exactly one compiled BTstack image. Both BLE and Classic source
+    # sets are materialized into this runtime archive so the protocol adapters
+    # do not each compile another copy of hci/l2cap/btstack_memory.
     target_sources(blu2usb_bt_runtime PRIVATE src/bt_runtime/bt_runtime_pico.c)
     target_link_libraries(blu2usb_bt_runtime PRIVATE
         pico_stdlib
         pico_btstack_ble
+        pico_btstack_classic
         pico_btstack_cyw43
         pico_cyw43_arch_threadsafe_background
     )
@@ -135,12 +139,16 @@ if(BLU2USB_BUILD_PICO)
     )
 
     target_sources(blu2usb_ble_hogp PRIVATE src/ble_hogp/ble_hogp_pico.c)
-    target_link_libraries(blu2usb_ble_hogp PRIVATE pico_stdlib pico_btstack_ble blu2usb_bt_runtime)
+    target_link_libraries(blu2usb_ble_hogp PRIVATE
+        pico_stdlib
+        pico_btstack_ble_headers
+        blu2usb_bt_runtime
+    )
 
     target_sources(blu2usb_classic_hid PRIVATE src/classic_hid/classic_hid_pico.c)
     target_link_libraries(blu2usb_classic_hid PRIVATE
         pico_stdlib
-        pico_btstack_classic
+        pico_btstack_classic_headers
         blu2usb_bt_runtime
     )
 
