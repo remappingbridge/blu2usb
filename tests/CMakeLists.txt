@@ -43,6 +43,13 @@ target_link_libraries(blu2usb_test_g06_profiles_remap_hidpp PRIVATE
 )
 add_test(NAME g06_profiles_remap_hidpp COMMAND blu2usb_test_g06_profiles_remap_hidpp)
 
+add_executable(blu2usb_test_g06_profile_ui test_g06_profile_ui.c)
+target_link_libraries(blu2usb_test_g06_profile_ui PRIVATE
+    blu2usb_renderer
+    blu2usb_ux_model
+)
+add_test(NAME g06_profile_ui_regressions COMMAND blu2usb_test_g06_profile_ui)
+
 add_test(
     NAME g06_architecture
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_g06_architecture.py
