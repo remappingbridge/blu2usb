@@ -17,6 +17,7 @@ _Static_assert(sizeof(blu2usb_canonical_mouse_event_t) <= BLU2USB_BT_RUNTIME_MES
 
 typedef enum {
     BLE_HOGP_STATE_WAITING_FOR_STACK = 0,
+    BLE_HOGP_STATE_PAUSED_DISCOVERY,
     BLE_HOGP_STATE_SCANNING,
     BLE_HOGP_STATE_CONNECTING,
     BLE_HOGP_STATE_SECURING,
@@ -47,6 +48,7 @@ static btstack_timer_source_t g_reconnect_timer;
 static bool g_reconnect_timer_active;
 static bool g_reconnect_cancel_pending;
 static bool g_reconnect_after_disconnect;
+static bool g_discovery_suppressed;
 static blu2usb_ble_hogp_vendor_backend_t g_vendor_backend;
 static bool g_vendor_registered;
 
@@ -148,10 +150,21 @@ static void stop_reconnect_timer(void)
     g_reconnect_timer_active = false;
 }
 
+static void enter_paused_discovery(void)
+{
+    stop_reconnect_timer();
+    g_reconnect_cancel_pending = false;
+    g_state = BLE_HOGP_STATE_PAUSED_DISCOVERY;
+}
+
 static void start_scan(void)
 {
     stop_reconnect_timer();
     g_reconnect_cancel_pending = false;
+    if (g_discovery_suppressed) {
+        enter_paused_discovery();
+        return;
+    }
     g_state = BLE_HOGP_STATE_SCANNING;
     gap_set_scan_parameters(0u, 48u, 48u);
     gap_start_scan();
@@ -169,6 +182,8 @@ static void reconnect_timeout_handler(btstack_timer_source_t *timer)
 
 static bool start_bonded_reconnect(void)
 {
+    if (g_discovery_suppressed) return false;
+
     const int count = le_device_db_count();
     if (count <= 0) return false;
 
@@ -206,7 +221,53 @@ static bool start_bonded_reconnect(void)
 
 static void reconnect_or_scan(void)
 {
+    if (g_discovery_suppressed) {
+        enter_paused_discovery();
+        return;
+    }
     if (!start_bonded_reconnect()) start_scan();
+}
+
+bool blu2usb_ble_hogp_pico_pause_discovery_for_classic(void)
+{
+    g_discovery_suppressed = true;
+    stop_reconnect_timer();
+
+    switch (g_state) {
+    case BLE_HOGP_STATE_PAUSED_DISCOVERY:
+        return true;
+    case BLE_HOGP_STATE_SCANNING:
+        gap_stop_scan();
+        enter_paused_discovery();
+        return true;
+    case BLE_HOGP_STATE_CONNECTING:
+        if (g_connection_handle != HCI_CON_HANDLE_INVALID) return false;
+        if (!g_reconnect_cancel_pending) {
+            g_reconnect_cancel_pending = true;
+            if (gap_connect_cancel() != ERROR_CODE_SUCCESS) {
+                enter_paused_discovery();
+                return true;
+            }
+        }
+        return false;
+    case BLE_HOGP_STATE_READY:
+        /* A live Mouse ACL/HOGP session stays up. There is no LE discovery to
+         * quiesce, and the proven PICO-08 path supports the Classic Keyboard
+         * alongside an already-connected BLE Mouse. */
+        return true;
+    case BLE_HOGP_STATE_WAITING_FOR_STACK:
+    case BLE_HOGP_STATE_SECURING:
+    case BLE_HOGP_STATE_CONNECTING_HIDS:
+    case BLE_HOGP_STATE_DISCONNECTING:
+    default:
+        return false;
+    }
+}
+
+void blu2usb_ble_hogp_pico_resume_discovery_after_classic(void)
+{
+    g_discovery_suppressed = false;
+    if (g_state == BLE_HOGP_STATE_PAUSED_DISCOVERY) reconnect_or_scan();
 }
 
 static void disconnect_current(bool reconnect_bonded)
@@ -335,10 +396,14 @@ static void hci_packet_handler(uint8_t packet_type, uint16_t channel,
     switch (hci_event_packet_get_type(packet)) {
     case BTSTACK_EVENT_STATE:
         if (btstack_event_state_get_state(packet) == HCI_STATE_WORKING &&
-            g_state == BLE_HOGP_STATE_WAITING_FOR_STACK) reconnect_or_scan();
+            g_state == BLE_HOGP_STATE_WAITING_FOR_STACK) {
+            if (g_discovery_suppressed) enter_paused_discovery();
+            else reconnect_or_scan();
+        }
         break;
     case GAP_EVENT_ADVERTISING_REPORT: {
-        if (g_state != BLE_HOGP_STATE_SCANNING || !advertisement_has_hid_service(packet)) break;
+        if (g_state != BLE_HOGP_STATE_SCANNING || g_discovery_suppressed ||
+            !advertisement_has_hid_service(packet)) break;
         bd_addr_t address;
         gap_event_advertising_report_get_address(packet, address);
         const bd_addr_type_t type = gap_event_advertising_report_get_address_type(packet);
@@ -363,7 +428,8 @@ static void hci_packet_handler(uint8_t packet_type, uint16_t channel,
             if (status != ERROR_CODE_SUCCESS) {
                 g_connection_handle = HCI_CON_HANDLE_INVALID;
                 g_reconnect_cancel_pending = false;
-                start_scan();
+                if (g_discovery_suppressed) enter_paused_discovery();
+                else start_scan();
                 break;
             }
             g_reconnect_cancel_pending = false;
@@ -382,7 +448,8 @@ static void hci_packet_handler(uint8_t packet_type, uint16_t channel,
         memset(&g_parser, 0, sizeof(g_parser));
         if (was_ready) (void)publish_status(BLU2USB_BLE_HOGP_MESSAGE_DISCONNECTED);
         g_reconnect_after_disconnect = false;
-        if (reconnect_bonded) reconnect_or_scan();
+        if (g_discovery_suppressed) enter_paused_discovery();
+        else if (reconnect_bonded) reconnect_or_scan();
         else start_scan();
         break;
     }
@@ -427,6 +494,7 @@ static void ble_hogp_session_setup(void)
     g_reconnect_timer_active = false;
     g_reconnect_cancel_pending = false;
     g_reconnect_after_disconnect = false;
+    g_discovery_suppressed = false;
     hids_client_init(g_descriptor_storage, sizeof(g_descriptor_storage));
     g_hci_registration.callback = &hci_packet_handler;
     hci_add_event_handler(&g_hci_registration);
