@@ -439,6 +439,11 @@ static void hci_packet_handler(uint8_t packet_type, uint16_t channel,
         }
         break;
     case HCI_EVENT_DISCONNECTION_COMPLETE: {
+        const hci_con_handle_t disconnected =
+            hci_event_disconnection_complete_get_connection_handle(packet);
+        if (g_connection_handle == HCI_CON_HANDLE_INVALID ||
+            disconnected != g_connection_handle) break;
+
         const bool was_ready = g_state == BLE_HOGP_STATE_READY;
         const bool reconnect_bonded = was_ready || g_reconnect_after_disconnect;
         stop_reconnect_timer();
