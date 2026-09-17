@@ -80,6 +80,21 @@ jobs:
           test ! -e build-pico/blu2usb_picow_debug.uf2
           sha256sum build-pico/blu2usb_picow.uf2
 
+      - name: Check final Bluetooth composition and write evidence
+        run: python3 tests/check_g07_production_image.py build-pico
+
+      - name: Upload build evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: g07-experiment-a-build-evidence
+          path: |
+            build-pico/g07-experiment-a-evidence.json
+            build-pico/compile_commands.json
+            build-pico/blu2usb_picow.elf
+            build-pico/blu2usb_picow.elf.map
+            build-pico/CMakeCache.txt
+          if-no-files-found: error
+
       - name: Upload production UF2
         uses: actions/upload-artifact@v4
         with:

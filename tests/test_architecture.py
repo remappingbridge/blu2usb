@@ -226,7 +226,9 @@ def check_g05_ble_hogp_contract() -> None:
         for path in source_files()
         if path.exists()
     )
-    for prohibited in ("pico_multicore", "multicore_launch_core1", "tud_disconnect(", "tud_connect("):
+    # Experiment A changes the execution envelope explicitly (investigation 08).
+    # Bootstrap tests cover Core1; immutable USB and module checks remain.
+    for prohibited in ("tud_disconnect(", "tud_connect("):
         if prohibited in combined:
             fail(f"G05 runtime contains prohibited coupling/re-enumeration token: {prohibited}")
 

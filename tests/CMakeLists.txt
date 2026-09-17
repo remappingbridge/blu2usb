@@ -68,3 +68,16 @@ add_test(
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_screen_contract.py
             ${PROJECT_SOURCE_DIR}
 )
+
+add_executable(blu2usb_test_g07_probe test_g07_probe.c
+    ../src/classic_hid/classic_probe_pico.c)
+target_include_directories(blu2usb_test_g07_probe PRIVATE fakes ../include)
+target_link_libraries(blu2usb_test_g07_probe PRIVATE blu2usb_ux_model)
+target_compile_options(blu2usb_test_g07_probe PRIVATE -Wall -Wextra -Werror)
+add_test(NAME g07_rebuild_connection_probe COMMAND blu2usb_test_g07_probe)
+
+add_executable(blu2usb_test_g07_bootstrap test_g07_bootstrap.c
+    ../src/bt_runtime/bt_runtime_pico.c)
+target_include_directories(blu2usb_test_g07_bootstrap PRIVATE fakes ../include)
+target_compile_options(blu2usb_test_g07_bootstrap PRIVATE -Wall -Wextra -Werror)
+add_test(NAME g07_rebuild_bootstrap_order COMMAND blu2usb_test_g07_bootstrap)
