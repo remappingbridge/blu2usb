@@ -86,6 +86,12 @@ add_test(
 )
 
 add_test(
+    NAME g07_documentation
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_g07_docs.py
+            ${PROJECT_SOURCE_DIR}
+)
+
+add_test(
     NAME screen_contract
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_screen_contract.py
             ${PROJECT_SOURCE_DIR}
