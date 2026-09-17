@@ -1,12 +1,12 @@
 # Canonical screen layouts
 
-This file is the normative screen-layout contract. Unless a section explicitly says **example/dynamic body**, the text block is literal and its line breaks, indentation and wording are frozen.
+This file is the normative 9x21 screen and control-map contract. Unless a section says **example/dynamic body**, its text block is literal. Visible hints and hidden controls are both functional requirements.
 
-All screens use the 9x21 grid and color/interaction rules from `00-interaction-visual-contract.md`.
+All layouts use the retained pixel relocation in `00-interaction-visual-contract.md`.
 
 ## HOME
 
-Literal:
+Hidden: Joy Up/Down Select; Key B Back (no-op because HOME is first); Key Y Lock.
 
 ```text
 HOME
@@ -20,15 +20,9 @@ JOY PRESS: ACCESS
 KEY Y: LOCK / UNLOCK
 ```
 
-## STATUS
+## MOUSE STATUS
 
-`STATUS` always has exactly two pages and wraps with Joy Left/Right.
-
-### MOUSE STATUS
-
-Body is dynamic/example. When no mouse is connected, the first body line is `MOUSE NOT CONNECTED` in off-white yellow. When connected, it is `MOUSE CONNECTED` in cyan. Remaining body content is context-derived and unindented/off-white yellow unless it represents current/success state explicitly.
-
-Approved example:
+Body is example/dynamic. Hidden: Key Y Lock.
 
 ```text
 MOUSE STATUS
@@ -42,11 +36,9 @@ KEY B: BACK
 KEY X: MOUSE HELP
 ```
 
-### OTHER DEVICES STATUS
+## OTHER DEVICES STATUS
 
-Body is dynamic/example. `KEYBOARD CONNECTED` and `COMPOSITE CONNECTED` are cyan when active; `... NOT CONNECTED` is off-white yellow.
-
-Approved example:
+Body is example/dynamic. Hidden: Key Y Lock.
 
 ```text
 OTHER DEVICES STATUS
@@ -60,9 +52,9 @@ KEY B: BACK
 KEY X: DEVICES HELP
 ```
 
-### MOUSE HELP
+## MOUSE HELP
 
-Body is example/dynamic and may use up to six lines to explain abbreviations used by Mouse Status (`FWD`, `HIDPP`, `BACK`, `STD`, etc.). Body is unindented/off-white yellow.
+Body is example/dynamic.
 
 ```text
 MOUSE HELP
@@ -76,9 +68,7 @@ MOUSE HELP
 ANY KEY: BACK
 ```
 
-### DEVICES HELP
-
-The approved wording may be retained. Body is unindented/off-white yellow.
+## DEVICES HELP
 
 ```text
 DEVICES HELP
@@ -94,7 +84,7 @@ ANY KEY: BACK
 
 ## MOUSE OPTIONS
 
-Current active mouse profile is cyan. `PAIR MOUSE` is cyan when a Mouse is active; otherwise it follows the ordinary actionable/option color.
+Hidden: Joy Up/Down Select; Key Y Lock.
 
 ```text
 MOUSE OPTIONS
@@ -105,14 +95,12 @@ MOUSE OPTIONS
  CUSTOM REMAP
 
 JOY PRESS: ACCESS
-JOY LEFT: BACK
+KEY B: BACK
 ```
 
 ## PAIR MOUSE
 
-Entering this screen automatically starts BLE HID Mouse discovery for a bounded period. Body is example/dynamic, unindented/off-white yellow. A successful new Mouse replaces the active Mouse only after transactional pairing commit.
-
-Approved example:
+Body is example/dynamic. Hidden: Key B Back; Key Y Lock. The physical HAT has no Key C, so Help is Key X.
 
 ```text
 PAIR MOUSE
@@ -126,9 +114,7 @@ KEY B: CANCEL
 KEY X: HELP
 ```
 
-### PAIR MOUSE HELP
-
-Body is example/dynamic; explain BLE/HID succinctly in up to six lines.
+## PAIR MOUSE HELP
 
 ```text
 PAIR MOUSE HELP
@@ -142,11 +128,9 @@ PAIR MOUSE HELP
 ANY KEY: BACK
 ```
 
-### MOUSE SAVED
+## MOUSE SAVED
 
-Success body is example/dynamic, unindented and cyan; up to five body lines may be used.
-
-Approved example:
+Body is example/dynamic success content.
 
 ```text
 MOUSE SAVED
@@ -157,14 +141,10 @@ SAVED DEVICES UPDATED
 
 
 KEY B: BACK
-JOY LEFT: GO TO HOME
+KEY Y: LOCK
 ```
 
-## PASSTHROUGH
-
-Before apply, body is off-white yellow. If already active or after successful apply, body is cyan.
-
-Literal pre-apply:
+## PASSTHROUGH — before apply
 
 ```text
 APPLY PASSTHROUGH
@@ -174,11 +154,11 @@ ARE NOT ACTIVE
 
 
 KEY A: APPLY
-KEY B: BACK
-JOY LEFT: GO TO HOME
+KEY B: CANCEL
+KEY Y: LOCK
 ```
 
-Literal applied:
+## PASSTHROUGH — applied
 
 ```text
 PASSTHROUGH APPLIED
@@ -187,16 +167,12 @@ BUTTONS POSITION
 ARE ACTIVE NOW
 
 
+
 KEY B: BACK
-JOY LEFT: GO TO HOME
 KEY Y: LOCK
 ```
 
-## DEFAULT REMAP
-
-This screen is also the normative Default mapping specification.
-
-Literal pre-apply:
+## DEFAULT REMAP — before apply
 
 ```text
 APPLY DEFAULT REMAP
@@ -207,10 +183,10 @@ RIGHT IS BACKWARD
 
 KEY A: APPLY
 KEY B: CANCEL
-JOY LEFT: GO TO HOME
+KEY Y: LOCK
 ```
 
-Literal applied:
+## DEFAULT REMAP — applied
 
 ```text
 DEFAULT REMAP APPLIED
@@ -219,18 +195,16 @@ LEFT IS FORWARD
 BACKWARD IS RIGHT
 RIGHT IS BACKWARD
 
+
 KEY B: BACK
-JOY LEFT: GO TO HOME
 KEY Y: LOCK
 ```
 
-Middle remains Middle even though it is not printed because the screen has only four mapping body lines.
+Middle remains Middle.
 
-## ESCAPE REMAP
+## ESCAPE REMAP — before apply
 
-This screen is also the normative Escape mapping specification.
-
-Literal pre-apply:
+Hidden: Key Y Lock.
 
 ```text
 APPLY ESCAPE
@@ -244,7 +218,7 @@ KEY A: APPLY
 KEY B: CANCEL
 ```
 
-Literal applied:
+## ESCAPE REMAP — applied
 
 ```text
 ESCAPE APPLIED
@@ -255,14 +229,12 @@ RIGHT IS BACKWARD
 MIDDLE IS FORWARD
 
 KEY B: BACK
-JOY LEFT: GO TO HOME
+KEY Y: LOCK
 ```
 
 ## EDIT CUSTOM REMAP
 
-This page edits the global CustomTemplate and is accessible with no Mouse connected or saved.
-
-The text through `IS` is fixed. The target after `IS` is dynamic and reflects the current draft. When Custom is not the active profile for the active Mouse, mapping rows rest in light gray; when Custom is active, or immediately after a successful `APPLY CUSTOM`, the mapping rows are cyan according to current/applied-state rules.
+Hidden: Joy Up/Down Select; Key B Back; Key Y Lock.
 
 ```text
 EDIT CUSTOM REMAP
@@ -276,9 +248,9 @@ JOY PRESS: ACCESS
 KEY A: APPLY CUSTOM
 ```
 
-### LEFT WILL BECOME
+## LEFT WILL BECOME
 
-Current/draft target is cyan; selected is white.
+Hidden: Joy Up/Down Select; Key B Back; Key Y Lock.
 
 ```text
 LEFT WILL BECOME
@@ -292,7 +264,9 @@ LEFT WILL BECOME
 KEY A: APPLY AND BACK
 ```
 
-### RIGHT WILL BECOME
+## RIGHT WILL BECOME
+
+Hidden: Joy Up/Down Select; Key B Back; Key Y Lock.
 
 ```text
 RIGHT WILL BECOME
@@ -306,7 +280,9 @@ RIGHT WILL BECOME
 KEY A: APPLY AND BACK
 ```
 
-### MIDDLE WILL BECOME
+## MIDDLE WILL BECOME
+
+Hidden: Joy Up/Down Select; Key B Back; Key Y Lock.
 
 ```text
 MIDDLE WILL BECOME
@@ -320,7 +296,9 @@ MIDDLE WILL BECOME
 KEY A: APPLY AND BACK
 ```
 
-### FORWARD WILL BECOME
+## FORWARD WILL BECOME
+
+Hidden: Joy Up/Down Select; Key B Back; Key Y Lock.
 
 ```text
 FORWARD WILL BECOME
@@ -334,7 +312,9 @@ FORWARD WILL BECOME
 KEY A: APPLY AND BACK
 ```
 
-### BACKWARD WILL BECOME
+## BACKWARD WILL BECOME
+
+Hidden: Joy Up/Down Select; Key B Back; Key Y Lock.
 
 ```text
 BACKWARD WILL BECOME
@@ -350,7 +330,7 @@ KEY A: APPLY AND BACK
 
 ## OTHER OPTIONS
 
-`PAIR KEYBOARD` is cyan when a Keyboard is active; `PAIR COMPOSITE` is cyan when a Composite is active. Otherwise they use ordinary option colors.
+Hidden: Key Y Lock.
 
 ```text
 OTHER OPTIONS
@@ -359,14 +339,12 @@ OTHER OPTIONS
  SAVED DEVICES
 
 
+JOY UP\DOWN: SELECT
 JOY PRESS: ACCESS
-JOY LEFT: BACK
-KEY Y: LOCK / UNLOCK
+KEY B: BACK
 ```
 
 ## OTHER OPTIONS HELP
-
-Approved body may be retained:
 
 ```text
 OTHER OPTIONS HELP
@@ -382,9 +360,7 @@ ANY KEY: BACK
 
 ## PAIR KEYBOARD
 
-This screen is intentionally **transport-neutral**. Entering it automatically searches the keyboard transports enabled by the firmware (for example Classic HID and/or BLE HOGP Keyboard). The user does not choose the transport.
-
-Body is example/dynamic. The old transport-specific line `SEARCHING BLE HID` is replaced by the approved transport-neutral wording `SEARCHING KEYBOARD`.
+Transport-neutral. Body is example/dynamic. Hidden: Key Y Lock.
 
 ```text
 PAIR KEYBOARD
@@ -398,9 +374,7 @@ KEY B: CANCEL
 KEY X: HELP
 ```
 
-### PAIR KEYBOARD HELP
-
-Body is example/dynamic. Explain HID and that keyboard transport is selected automatically; do not promise BLE-only behavior.
+## PAIR KEYBOARD HELP
 
 ```text
 PAIR KEYBOARD HELP
@@ -414,9 +388,7 @@ PAIR KEYBOARD HELP
 ANY KEY: BACK
 ```
 
-### KEYBOARD SAVED
-
-Success body is example/dynamic, unindented and cyan.
+## KEYBOARD SAVED
 
 ```text
 KEYBOARD SAVED
@@ -427,12 +399,12 @@ SAVED DEVICES UPDATED
 
 
 KEY B: BACK
-JOY LEFT: GO TO HOME
+KEY Y: LOCK
 ```
 
 ## PAIR COMPOSITE
 
-Entering automatically starts supported Composite discovery; v1 target is BLE HID composite. Body is example/dynamic.
+Body is example/dynamic. Hidden: Key Y Lock.
 
 ```text
 PAIR COMPOSITE
@@ -446,9 +418,7 @@ KEY B: CANCEL
 KEY X: HELP
 ```
 
-### PAIR COMPOSITE HELP
-
-Body is example/dynamic.
+## PAIR COMPOSITE HELP
 
 ```text
 PAIR COMPOSITE HELP
@@ -462,9 +432,7 @@ PAIR COMPOSITE HELP
 ANY KEY: BACK
 ```
 
-### COMPOSITE SAVED
-
-Success body is example/dynamic, unindented and cyan.
+## COMPOSITE SAVED
 
 ```text
 COMPOSITE SAVED
@@ -475,14 +443,12 @@ SAVED DEVICES UPDATED
 
 
 KEY B: BACK
-JOY LEFT: GO TO HOME
+KEY Y: LOCK
 ```
 
-## SAVED DEVICES
+## SAVED DEVICES — page 1 example
 
-At most four saved devices per page. The title is dynamic pagination text. Active device option rows are cyan. Inactive saved rows use ordinary option color. Joy Up/Down scrolls within the current page; Joy Left/Right pages with wraparound.
-
-Approved first-page example:
+Hidden: Key B Back; Key Y Lock.
 
 ```text
 1-4 OF 6 SAVED
@@ -491,12 +457,14 @@ Approved first-page example:
  TRAVEL KEYBOARD
  GENERIC MOUSE
 
-JOY UP\DOWN: SCROLL
+JOY UP\DOWN: SELECT
 JOY PRESS: ACCESS
 JOY RIGHT\LEFT: PAGE
 ```
 
-Approved second-page example:
+## SAVED DEVICES — page 2 example
+
+Hidden: Key B Back; Key Y Lock.
 
 ```text
 5-6 OF 6 SAVED
@@ -505,14 +473,14 @@ Approved second-page example:
 
 
 
-JOY UP\DOWN: SCROLL
+JOY UP\DOWN: SELECT
 JOY PRESS: ACCESS
 JOY RIGHT\LEFT: PAGE
 ```
 
 ## DEVICE DETAILS — Mouse
 
-The device name and dynamic values after `TYPE:`, `STATUS:` and `PROFILE:` are cyan when this saved device is the active Mouse. For an inactive saved Mouse those values are off-white yellow. `REMOVE DEVICE` is the only selectable option and stays immediately below the informational lines.
+Hidden: Key Y Lock. Active-device dynamic values are cyan.
 
 ```text
 DEVICE DETAILS
@@ -528,8 +496,6 @@ KEY B: BACK
 
 ## DEVICE DETAILS — Keyboard
 
-Active dynamic values are cyan; inactive saved values are off-white yellow.
-
 ```text
 DEVICE DETAILS
 BKB-3G
@@ -539,12 +505,10 @@ STATUS: SAVED
 
 JOY PRESS: ACCESS
 KEY B: BACK
-JOY LEFT: GO TO HOME
+KEY Y: LOCK
 ```
 
 ## DEVICE DETAILS — Composite
-
-Active dynamic values are cyan; inactive saved values are off-white yellow.
 
 ```text
 DEVICE DETAILS
@@ -555,12 +519,10 @@ STATUS: SAVED
 
 JOY PRESS: ACCESS
 KEY B: BACK
-JOY LEFT: GO TO HOME
+KEY Y: LOCK
 ```
 
 ## REMOVE DEVICE
-
-After successful remove, return to `SAVED DEVICES`. Body is unindented/off-white yellow.
 
 ```text
 REMOVE DEVICE
@@ -569,16 +531,14 @@ PAIRING AND MAPPINGS
 WILL BE DELETED
 
 
-
 KEY A: REMOVE
 KEY B: CANCEL
+KEY Y: LOCK
 ```
 
 ## LEARN THE KEYS
 
-The screen identity and HOME option remain `LEARN THE KEYS`; its displayed title is frozen as `PRESS TO LEAR A KEY`.
-
-This page is literal down to character placement. It uses the full dark-magenta background. Resting control labels are light gray and only the relevant words become white while their control is held.
+Screen identity and HOME option remain `LEARN THE KEYS`; displayed title is `PRESS TO LEAR A KEY`. This page is literal down to character placement.
 
 ```text
 PRESS TO LEAR A KEY
@@ -586,31 +546,21 @@ PRESS TO LEAR A KEY
 JOY    JOY    JOY
 LEFT  PRESS  RIGHT
      JOY DOWN
-              KEY A
-LOCK SCREEN   KEY B
- AND UNLOCK   KEY X
+               KEY A
+LOCK SCREEN    KEY B
+ AND UNLOCK    KEY X
   OPEN HOME -> KEY Y
 ```
 
-Character-position rules, counted from column 1:
+Character positions are 1-based:
 
-- `JOY UP`: `J` at column 7;
-- row with three `JOY`: starts at columns 1, 8 and 15;
-- `LEFT`, `PRESS`, `RIGHT`: starts at columns 1, 7 and 14;
-- `JOY DOWN`: `J` at column 6;
-- `KEY A`, `KEY B`, `KEY X`: `K` at column 15;
-- `LOCK SCREEN`: `L` at column 1;
-- `AND UNLOCK`: `A` at column 2;
-- `OPEN HOME -> KEY Y`: row starts at column 3.
+- `JOY UP`: J at column 7;
+- row with three `JOY`: columns 1, 8, 15;
+- `LEFT`, `PRESS`, `RIGHT`: columns 1, 7, 14;
+- `JOY DOWN`: J at column 6;
+- `KEY A`, `KEY B`, `KEY X`: K at column 16;
+- `LOCK SCREEN`: L at column 1;
+- `AND UNLOCK`: A at column 2;
+- `OPEN HOME -> KEY Y`: row begins at column 3.
 
-Press feedback:
-
-- Joy Up -> `JOY UP` white;
-- Joy Left -> first `JOY` and `LEFT` white;
-- Joy Press -> second `JOY` and `PRESS` white;
-- Joy Right -> third `JOY` and `RIGHT` white;
-- Joy Down -> `JOY DOWN` white;
-- Key A/B/X -> its own label white;
-- Key Y -> `LOCK SCREEN`, `AND UNLOCK` and `OPEN HOME -> KEY Y` white.
-
-On release all demonstration text returns to light gray. Key Y release additionally locks. Other controls have no normal navigation action while Learn The Keys owns the screen.
+Press feedback: each control makes only its own didactic label(s) white while held. Key Y release locks. Other controls have no normal navigation action while this screen owns interaction.
