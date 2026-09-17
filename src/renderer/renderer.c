@@ -131,7 +131,7 @@ static bool row_has_control(const char *row, blu2usb_control_t control)
     case BLU2USB_CONTROL_JOY_PRESS: return strstr(row, "JOY PRESS") != NULL;
     case BLU2USB_CONTROL_KEY_A: return strstr(row, "KEY A") != NULL;
     case BLU2USB_CONTROL_KEY_B: return strstr(row, "KEY B") != NULL;
-    case BLU2USB_CONTROL_KEY_X: return strstr(row, "KEY X") != NULL;
+    case BLU2USB_CONTROL_KEY_X: return strstr(row, "KEY X") != NULL || strstr(row, "KEY C") != NULL;
     case BLU2USB_CONTROL_KEY_Y: return strstr(row, "KEY Y") != NULL;
     default: return false;
     }
@@ -227,22 +227,53 @@ uint16_t blu2usb_renderer_background_rgb565(const blu2usb_ui_frame_t *frame, uin
     return row >= frame->hint_start_row ? BLU2USB_COLOR_DARK_MAGENTA : BLU2USB_COLOR_BLACK;
 }
 
+static uint16_t standard_body_text_y(uint8_t row)
+{
+    const uint16_t first = (uint16_t)(BLU2USB_RENDERER_TEXT_Y + BLU2USB_RENDERER_GLYPH_HEIGHT + BLU2USB_RENDERER_TITLE_BODY_GAP);
+    const uint16_t advance = (uint16_t)(BLU2USB_RENDERER_GLYPH_HEIGHT + BLU2USB_RENDERER_BODY_LINE_GAP);
+    return (uint16_t)(first + (uint16_t)(row - 1u) * advance);
+}
+
+static uint16_t standard_hint_text_y(uint8_t row)
+{
+    const uint16_t last = (uint16_t)(BLU2USB_RENDERER_HEIGHT - BLU2USB_RENDERER_HINT_BOTTOM_GAP - BLU2USB_RENDERER_GLYPH_HEIGHT);
+    const uint16_t advance = (uint16_t)(BLU2USB_RENDERER_GLYPH_HEIGHT + BLU2USB_RENDERER_HINT_LINE_GAP);
+    return (uint16_t)(last - (uint16_t)(BLU2USB_RENDERER_TEXT_ROWS - 1u - row) * advance);
+}
+
 uint16_t blu2usb_renderer_separator_boundary_y(const blu2usb_ui_frame_t *frame)
 {
     if (frame == NULL || frame->learn_background || frame->hint_start_row == 0u || frame->hint_start_row >= BLU2USB_RENDERER_TEXT_ROWS) return BLU2USB_RENDERER_HEIGHT;
-    const uint16_t separator_row = (uint16_t)(frame->hint_start_row - 1u);
-    const uint16_t boundary = (uint16_t)(BLU2USB_RENDERER_TEXT_Y + separator_row * BLU2USB_RENDERER_LINE_ADVANCE + BLU2USB_RENDERER_LINE_ADVANCE / 2u);
-    return boundary < BLU2USB_RENDERER_HEIGHT ? boundary : BLU2USB_RENDERER_HEIGHT;
+    const uint16_t first_hint_y = standard_hint_text_y(frame->hint_start_row);
+    if (first_hint_y <= BLU2USB_RENDERER_HINT_TOP_GAP) return 0u;
+    return (uint16_t)(first_hint_y - BLU2USB_RENDERER_HINT_TOP_GAP);
+}
+
+uint16_t blu2usb_renderer_text_y(const blu2usb_ui_frame_t *frame, uint8_t row)
+{
+    if (row >= BLU2USB_RENDERER_TEXT_ROWS) return BLU2USB_RENDERER_HEIGHT;
+
+    const uint16_t semantic_base = (uint16_t)(BLU2USB_RENDERER_TEXT_Y + (uint16_t)row * BLU2USB_RENDERER_LINE_ADVANCE);
+    if (frame == NULL) return semantic_base;
+
+    if (frame->learn_background) {
+        if (row == 0u) return BLU2USB_RENDERER_TEXT_Y;
+        const uint16_t first = (uint16_t)(BLU2USB_RENDERER_TEXT_Y + BLU2USB_RENDERER_GLYPH_HEIGHT + BLU2USB_RENDERER_TITLE_BODY_GAP);
+        const uint16_t advance = (uint16_t)(BLU2USB_RENDERER_GLYPH_HEIGHT + BLU2USB_RENDERER_LEARN_LINE_GAP);
+        return (uint16_t)(first + (uint16_t)(row - 1u) * advance);
+    }
+
+    if (row == 0u || frame->hint_start_row == 0u || frame->hint_start_row > BLU2USB_RENDERER_TEXT_ROWS) return semantic_base;
+
+    const uint8_t separator_row = (uint8_t)(frame->hint_start_row - 1u);
+    if (row > 0u && row < separator_row) return standard_body_text_y(row);
+    if (row >= frame->hint_start_row) return standard_hint_text_y(row);
+    return semantic_base;
 }
 
 static uint16_t relocated_cell_x(uint8_t column)
 {
     return (uint16_t)(BLU2USB_RENDERER_TEXT_X + (uint16_t)column * BLU2USB_RENDERER_CHAR_ADVANCE);
-}
-
-static uint16_t relocated_cell_y(uint8_t row)
-{
-    return (uint16_t)(BLU2USB_RENDERER_TEXT_Y + (uint16_t)row * BLU2USB_RENDERER_LINE_ADVANCE);
 }
 
 static bool draw_cell(const blu2usb_display_hal_t *display, const blu2usb_ui_frame_t *frame, uint8_t row, uint8_t column)
@@ -262,7 +293,7 @@ static bool draw_cell(const blu2usb_display_hal_t *display, const blu2usb_ui_fra
         }
     }
     const uint16_t x = relocated_cell_x(column);
-    const uint16_t y = relocated_cell_y(row);
+    const uint16_t y = blu2usb_renderer_text_y(frame,row);
     return display->write_rgb565(display->context,x,y,BLU2USB_RENDERER_GLYPH_WIDTH,BLU2USB_RENDERER_GLYPH_HEIGHT,pixels);
 }
 
