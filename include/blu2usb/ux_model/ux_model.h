@@ -81,6 +81,8 @@ typedef struct {
     unsigned saved_page;
     unsigned saved_pages;
     unsigned saved_device_count;
+    blu2usb_mouse_profile_kind_t active_profile;
+    bool custom_dirty;
     blu2usb_mouse_source_t custom_source;
     blu2usb_mouse_target_t custom_targets[BLU2USB_MOUSE_SOURCE_COUNT];
 } blu2usb_ux_model_t;
