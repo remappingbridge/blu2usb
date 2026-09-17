@@ -1,12 +1,15 @@
 #include <limits.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "pico/stdlib.h"
 #include "blu2usb/ble_hogp/ble_hogp.h"
 #include "blu2usb/bt_runtime/bt_runtime.h"
+#include "blu2usb/bt_runtime/boot_gate.h"
 #include "blu2usb/domain/version.h"
+#include "blu2usb/classic_hid/classic_probe.h"
 #include "blu2usb/hat/hat.h"
 #include "blu2usb/hid_aggregator/hid_aggregator.h"
 #include "blu2usb/logitech_hidpp/logitech_hidpp.h"
@@ -20,12 +23,49 @@
 
 #define BLU2USB_RUNTIME_MESSAGES_PER_TICK 32u
 
+/* Minimal connection observation for experiment A; full Keyboard UX is stage D. */
+static void project_connection_probe(const blu2usb_ux_model_t *ux, blu2usb_ui_frame_t *frame)
+{
+    if (ux->screen != BLU2USB_SCREEN_PAIR_KEYBOARD) return;
+    const blu2usb_classic_probe_snapshot_t state = blu2usb_classic_probe_snapshot();
+    static const char *const labels[] = {
+        "STARTING BLUETOOTH", "READY TO PAIR", "STARTING SEARCH",
+        "SEARCHING KEYBOARD", "READING DEVICE NAME", "CONNECTING KEYBOARD",
+        "TYPE PIN ON KEYBOARD", "SETTING UP KEYBOARD", "KEYBOARD CONNECTED",
+        "FINISHING REQUEST", "CONNECTION ERROR"
+    };
+    for (unsigned row = 1; row <= 4; ++row)
+        for (unsigned col = 0; col < BLU2USB_RENDERER_TEXT_COLS; ++col) {
+            frame->cells[row][col].character = ' ';
+            frame->cells[row][col].tone = BLU2USB_UI_TONE_STATIC;
+        }
+    const char *label = state.phase <= BLU2USB_PROBE_ERROR ? labels[state.phase] : "CONNECTION ERROR";
+    (void)blu2usb_ui_frame_set_text(frame, 1, 0, label,
+        state.phase == BLU2USB_PROBE_READY ? BLU2USB_UI_TONE_CURRENT : BLU2USB_UI_TONE_STATIC);
+    (void)blu2usb_ui_frame_set_text(frame, 4, 0, "PICO-08 A2", BLU2USB_UI_TONE_STATIC);
+    char line[22];
+    if (state.phase == BLU2USB_PROBE_PIN) {
+        (void)snprintf(line, sizeof(line), "PIN: %0*u", state.pin_digits == 4 ? 4 : 6, (unsigned)state.pin);
+        (void)blu2usb_ui_frame_set_text(frame, 2, 0, line, BLU2USB_UI_TONE_CURRENT);
+        (void)blu2usb_ui_frame_set_text(frame, 3, 0, "THEN PRESS ENTER", BLU2USB_UI_TONE_STATIC);
+    } else if (state.phase == BLU2USB_PROBE_ERROR) {
+        (void)snprintf(line, sizeof(line), "%s", state.message);
+        (void)blu2usb_ui_frame_set_text(frame, 2, 0, line, BLU2USB_UI_TONE_STATIC);
+    } else if (state.phase == BLU2USB_PROBE_READY) {
+        (void)blu2usb_ui_frame_set_text(frame, 2, 0, "CONNECTION CONFIRMED", BLU2USB_UI_TONE_CURRENT);
+    } else {
+        (void)snprintf(line, sizeof(line), "INQUIRY RESULTS %u", state.found);
+        (void)blu2usb_ui_frame_set_text(frame, 2, 0, line, BLU2USB_UI_TONE_STATIC);
+    }
+}
+
 static bool render_state(const blu2usb_display_hal_t *display,
                          const blu2usb_ux_model_t *ux)
 {
     blu2usb_ui_frame_t frame;
     blu2usb_ui_project(ux, &frame);
     blu2usb_ui_enforce_applied_visual_contract(ux, &frame);
+    project_connection_probe(ux, &frame);
     return blu2usb_renderer_render(display, &frame);
 }
 
@@ -175,6 +215,12 @@ static void handle_ux_command(blu2usb_ux_model_t *ux,
 {
     blu2usb_mouse_profile_config_t candidate;
     switch (command.kind) {
+    case BLU2USB_UX_COMMAND_PAIR_KEYBOARD:
+        blu2usb_classic_probe_pair();
+        break;
+    case BLU2USB_UX_COMMAND_RETRY:
+        if (ux->screen == BLU2USB_SCREEN_PAIR_KEYBOARD) blu2usb_classic_probe_pair();
+        break;
     case BLU2USB_UX_COMMAND_APPLY_PASSTHROUGH:
         if (blu2usb_profiles_build_preset(BLU2USB_MOUSE_PROFILE_PASSTHROUGH,
                                           profiles, &candidate) &&
@@ -307,19 +353,33 @@ int main(void)
     if (!blu2usb_st7789_pico_init(&display)) {
         for (;;) { blu2usb_usb_hid_pico_task(); tight_loop_contents(); }
     }
-    (void)render_state(&display, &ux);
+    const bool lcd_ready = render_state(&display, &ux);
     blu2usb_st7789_pico_set_backlight(true);
+    blu2usb_bt_boot_gate_t boot_gate = {0};
+    (void)blu2usb_bt_boot_due(&boot_gate, lcd_ready, to_ms_since_boot(get_absolute_time()));
+    blu2usb_classic_probe_shared_init();
 
     (void)blu2usb_logitech_hidpp_pico_start();
     blu2usb_logitech_hidpp_pico_set_forward_fix(
         blu2usb_profiles_requires_forward_held_fix(&boot_profile));
-    (void)blu2usb_ble_hogp_start();
+    blu2usb_classic_probe_snapshot_t previous_probe = blu2usb_classic_probe_snapshot();
 
     for (;;) {
+        if (blu2usb_bt_boot_due(&boot_gate, lcd_ready, to_ms_since_boot(get_absolute_time())))
+            (void)blu2usb_bt_runtime_start(blu2usb_ble_hogp_session_setup,
+                blu2usb_classic_probe_setup, blu2usb_ble_hogp_session_prepare);
         blu2usb_usb_hid_pico_task();
-        const bool ble_ui_changed =
+        bool ble_ui_changed =
             service_ble_messages(&ux, &aggregator, &remap,
                                  &last_mouse_valid, &last_keyboard_valid);
+        const blu2usb_classic_probe_snapshot_t probe = blu2usb_classic_probe_snapshot();
+        if (probe.phase != previous_probe.phase || probe.error != previous_probe.error ||
+            probe.found != previous_probe.found || probe.pin != previous_probe.pin ||
+            probe.pin_digits != previous_probe.pin_digits ||
+            strcmp(probe.message, previous_probe.message) != 0) {
+            previous_probe = probe;
+            if (ux.screen == BLU2USB_SCREEN_PAIR_KEYBOARD) ble_ui_changed = true;
+        }
         if (ble_ui_changed && !blu2usb_interaction_is_locked(&ux.interaction))
             (void)render_state(&display, &ux);
         service_usb_mouse(&aggregator, &last_mouse_buttons, &last_mouse_valid);
@@ -329,8 +389,14 @@ int main(void)
         blu2usb_hat_event_t event;
         while (blu2usb_hat_pico_poll_event(&event)) {
             const bool was_locked = blu2usb_interaction_is_locked(&ux.interaction);
+            const blu2usb_screen_id_t previous_screen = ux.screen;
             const blu2usb_ux_command_t command =
                 blu2usb_ux_input(&ux, event.control, event.pressed);
+            const bool was_pair = previous_screen == BLU2USB_SCREEN_PAIR_KEYBOARD ||
+                                  previous_screen == BLU2USB_SCREEN_PAIR_KEYBOARD_HELP;
+            const bool now_pair = ux.screen == BLU2USB_SCREEN_PAIR_KEYBOARD ||
+                                  ux.screen == BLU2USB_SCREEN_PAIR_KEYBOARD_HELP;
+            if (was_pair && !now_pair) blu2usb_classic_probe_cancel();
             handle_ux_command(&ux, command, &profiles, &remap, &aggregator,
                               &last_mouse_valid, &last_keyboard_valid);
             const bool is_locked = blu2usb_interaction_is_locked(&ux.interaction);

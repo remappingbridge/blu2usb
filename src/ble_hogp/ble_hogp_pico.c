@@ -373,6 +373,10 @@ static void hci_packet_handler(uint8_t packet_type, uint16_t channel,
         }
         break;
     case HCI_EVENT_DISCONNECTION_COMPLETE: {
+        /* Shared controller: a Classic ACL must never clear the Mouse session. */
+        if (g_connection_handle == HCI_CON_HANDLE_INVALID ||
+            hci_event_disconnection_complete_get_connection_handle(packet) !=
+                g_connection_handle) break;
         const bool was_ready = g_state == BLE_HOGP_STATE_READY;
         const bool reconnect_bonded = was_ready || g_reconnect_after_disconnect;
         stop_reconnect_timer();
@@ -414,7 +418,12 @@ static void sm_packet_handler(uint8_t packet_type, uint16_t channel,
     if (ready && g_state == BLE_HOGP_STATE_SECURING) connect_hid_service();
 }
 
-static void ble_hogp_session_setup(void)
+void blu2usb_ble_hogp_session_prepare(void)
+{
+    hids_client_init(g_descriptor_storage, sizeof(g_descriptor_storage));
+}
+
+void blu2usb_ble_hogp_session_setup(void)
 {
     memset(&g_parser, 0, sizeof(g_parser));
     memset(g_rejected_devices, 0, sizeof(g_rejected_devices));
@@ -427,7 +436,6 @@ static void ble_hogp_session_setup(void)
     g_reconnect_timer_active = false;
     g_reconnect_cancel_pending = false;
     g_reconnect_after_disconnect = false;
-    hids_client_init(g_descriptor_storage, sizeof(g_descriptor_storage));
     g_hci_registration.callback = &hci_packet_handler;
     hci_add_event_handler(&g_hci_registration);
     g_sm_registration.callback = &sm_packet_handler;
@@ -440,5 +448,5 @@ static void ble_hogp_session_setup(void)
 
 bool blu2usb_ble_hogp_start(void)
 {
-    return blu2usb_bt_runtime_start(ble_hogp_session_setup);
+    return blu2usb_bt_runtime_start(blu2usb_ble_hogp_session_setup, NULL, blu2usb_ble_hogp_session_prepare);
 }

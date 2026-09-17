@@ -15,6 +15,7 @@ if(BLU2USB_BUILD_PICO)
 endif()
 
 project(blu2usb_picow VERSION 0.6.0 LANGUAGES C CXX ASM)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -104,19 +105,39 @@ if(BLU2USB_BUILD_PICO)
     target_link_libraries(blu2usb_usb_hid PUBLIC tinyusb_device)
 
     target_sources(blu2usb_storage PRIVATE src/storage/storage_pico.c)
-    target_link_libraries(blu2usb_storage PRIVATE pico_stdlib pico_flash hardware_flash)
+    # Flash implementation is materialized once with the shared multicore runtime.
+    # A second storage-owned flash.c would compile without LIB_PICO_MULTICORE
+    # and could win archive selection, silently disabling cross-core lockout.
+    target_link_libraries(blu2usb_storage PRIVATE pico_stdlib pico_flash_headers hardware_flash)
 
-    target_sources(blu2usb_bt_runtime PRIVATE src/bt_runtime/bt_runtime_pico.c)
+    # SDK 2.2.0 attaches pico_flash/flash.c transitively even through stdlib.
+    # Materialize it only here, with pico_multicore enabled, so the final
+    # executable cannot select its own IRQ-only variant ahead of this archive.
+    get_target_property(blu2usb_sdk_flash_sources pico_flash INTERFACE_SOURCES)
+    list(LENGTH blu2usb_sdk_flash_sources blu2usb_sdk_flash_source_count)
+    if(NOT blu2usb_sdk_flash_source_count EQUAL 1)
+        message(FATAL_ERROR "Revalidate pico_flash source composition for this SDK")
+    endif()
+    set_property(TARGET pico_flash PROPERTY INTERFACE_SOURCES "")
+    target_sources(blu2usb_bt_runtime PRIVATE
+        src/bt_runtime/bt_runtime_pico.c ${blu2usb_sdk_flash_sources})
     target_link_libraries(blu2usb_bt_runtime PRIVATE
         pico_stdlib
+        pico_multicore
+        pico_flash
         pico_btstack_ble
+        pico_btstack_classic
         pico_btstack_cyw43
         pico_cyw43_arch_threadsafe_background
     )
     target_compile_definitions(blu2usb_bt_runtime PUBLIC
         CYW43_LWIP=0
         PICO_BTSTACK_CYW43_MAX_HCI_PROCESS_LOOP_COUNT=8
+        PICO_CORE1_STACK_SIZE=0
     )
+    # Headers must match the feature-dependent types compiled into the stack.
+    target_link_libraries(blu2usb_bt_runtime PUBLIC
+        pico_btstack_ble_headers pico_btstack_classic_headers)
     pico_btstack_make_gatt_header(
         blu2usb_bt_runtime
         PRIVATE
@@ -124,7 +145,15 @@ if(BLU2USB_BUILD_PICO)
     )
 
     target_sources(blu2usb_ble_hogp PRIVATE src/ble_hogp/ble_hogp_pico.c)
-    target_link_libraries(blu2usb_ble_hogp PRIVATE pico_stdlib pico_btstack_ble blu2usb_bt_runtime)
+    target_link_libraries(blu2usb_ble_hogp PRIVATE pico_stdlib blu2usb_bt_runtime)
+
+    add_library(blu2usb_classic_probe STATIC
+        src/classic_hid/classic_probe_pico.c
+        src/classic_hid/pico08/classic_keyboard.c)
+    target_include_directories(blu2usb_classic_probe PRIVATE src/classic_hid/pico08_compat)
+    target_include_directories(blu2usb_classic_probe PUBLIC include)
+    target_link_libraries(blu2usb_classic_probe PRIVATE pico_stdlib blu2usb_bt_runtime)
+    target_link_libraries(blu2usb_module_classic_hid INTERFACE blu2usb_classic_probe)
 
     target_sources(blu2usb_logitech_hidpp PRIVATE src/logitech_hidpp/logitech_hidpp_pico.c)
     target_link_libraries(blu2usb_logitech_hidpp PRIVATE blu2usb_ble_hogp)
@@ -145,6 +174,8 @@ target_link_libraries(blu2usb_module_ble_hogp INTERFACE blu2usb_ble_hogp)
 target_link_libraries(blu2usb_module_logitech_hidpp INTERFACE blu2usb_logitech_hidpp)
 
 if(BLU2USB_BUILD_TESTS)
+    # G06 Release CI disabled assert(), hiding stale test expectations.
+    add_compile_options(-UNDEBUG)
     enable_testing()
     find_package(Python3 REQUIRED COMPONENTS Interpreter)
 

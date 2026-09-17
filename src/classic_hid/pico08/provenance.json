@@ -1,0 +1,9 @@
+{
+  "repository": "tiagooliveirajs/picow-mouse-remapper",
+  "commit": "0d917e58e73acf4333d7bc773186f97898ee3ffa",
+  "directory": "src_fw/picow_ble_usb_hid_bridge",
+  "sha256": {
+    "classic_keyboard.c": "3a94c69b2bc5251d16cae9baeb5641b5a22d19cbcfe1755e7b73092b0d5e00f0",
+    "classic_keyboard.h": "c6215e52660abf10fc870dda8394cc808eed58af66d89fdccbffe4e42ee6daa1"
+  }
+}
