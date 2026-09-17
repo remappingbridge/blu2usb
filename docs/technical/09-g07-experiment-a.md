@@ -1,3 +1,7 @@
+> **Candidato A reprovado fisicamente pelo operador: não pareou.**
+> A etapa atual é [A2: transplante do fonte original](10-g07-pico08-transplant.md).
+> Este documento preserva o histórico da primeira reconstrução.
+
 # G07 reconstruído — Experimento A: conexão
 
 Este candidato parte de G06 `7eee024ad4ee726c5a85ffa2f32b9f47187878af`.
