@@ -25,6 +25,7 @@ typedef enum {
     BLU2USB_SCREEN_APPLY_ESCAPE,
     BLU2USB_SCREEN_ESCAPE_APPLIED,
     BLU2USB_SCREEN_EDIT_CUSTOM,
+    BLU2USB_SCREEN_CUSTOM_APPLIED,
     BLU2USB_SCREEN_LEFT_WILL_BECOME,
     BLU2USB_SCREEN_RIGHT_WILL_BECOME,
     BLU2USB_SCREEN_MIDDLE_WILL_BECOME,
@@ -92,6 +93,8 @@ blu2usb_ux_command_t blu2usb_ux_input(blu2usb_ux_model_t *ux, blu2usb_control_t 
 void blu2usb_ux_set_saved_device_count(blu2usb_ux_model_t *ux, unsigned count);
 void blu2usb_ux_set_custom_target(blu2usb_ux_model_t *ux, blu2usb_mouse_source_t source, blu2usb_mouse_target_t target);
 void blu2usb_ux_profile_applied(blu2usb_ux_model_t *ux, blu2usb_mouse_profile_kind_t active_profile);
+void blu2usb_ux_set_mouse_connected(bool connected);
+bool blu2usb_ux_mouse_connected(void);
 const blu2usb_screen_template_t *blu2usb_ux_screen_template(blu2usb_screen_id_t screen);
 unsigned blu2usb_ux_option_count(const blu2usb_ux_model_t *ux);
 uint16_t blu2usb_ux_learn_white_span_mask(const blu2usb_ux_model_t *ux);
