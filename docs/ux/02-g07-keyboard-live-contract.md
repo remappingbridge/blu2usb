@@ -68,3 +68,18 @@ Lock affects only LCD/HAT presentation. A connected Keyboard keeps forwarding ca
 ## Ownership
 
 Physical Keyboard input uses its own canonical source identity. It may coexist with remap-generated synthetic Escape. Releasing/disconnecting the physical Keyboard must never release a target still owned by the synthetic remap source, and the reverse is also true.
+
+## G07 pairing progress and recoverable errors
+
+The dynamic body reports STARTING KEYBOARD, WAITING FOR RADIO, STARTING SEARCH,
+SEARCHING KEYBOARD, READING DEVICE NAME, CONNECTING KEYBOARD, SETTING UP KEYBOARD
+or RETRYING SEARCH. SEARCHING is published only after controller confirmation or
+an actual inquiry result. The search attempt and discovered-device count appear
+on row 2 (display counters wrap at 1000/100; internal counters do not define success).
+
+On failure the body shows KEYBOARD ERROR, the last phase, ERROR followed by a
+hexadecimal code, and RETRY OR POWER CYCLE. F0 is a phase timeout, F1 is pending
+cleanup, F2 is the independent no-update timeout. Other codes preserve operation
+status. Existing title, geometry, hint positions, Help and Key B remain unchanged.
+A new progress state clears any stale PIN; live PIN entry retains its existing
+presentation. No transport name or transport choice is exposed to the operator.

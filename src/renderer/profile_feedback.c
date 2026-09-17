@@ -133,7 +133,29 @@ static void project_pair_keyboard(blu2usb_ui_frame_t *frame)
 {
     uint32_t value = 0u;
     uint8_t digits = 0u;
-    if (!blu2usb_ux_keyboard_pair_code(&value, &digits)) return;
+    if (!blu2usb_ux_keyboard_pair_code(&value, &digits)) {
+        static const char *const phases[] = {
+            "STARTING KEYBOARD", "WAITING FOR RADIO", "STARTING SEARCH",
+            "SEARCHING KEYBOARD", "READING DEVICE NAME", "CONNECTING KEYBOARD",
+            "SETTING UP KEYBOARD", "RETRYING SEARCH", "KEYBOARD ERROR"
+        };
+        const blu2usb_keyboard_pair_progress_t p = blu2usb_ux_keyboard_pair_progress();
+        const unsigned phase = p.phase <= BLU2USB_KEYBOARD_PAIR_ERROR ? p.phase : BLU2USB_KEYBOARD_PAIR_ERROR;
+        for (unsigned row = 1; row <= 4; ++row) clear_row(frame, row);
+        char text[BLU2USB_RENDERER_TEXT_COLS + 1u];
+        (void)blu2usb_ui_frame_set_text(frame, 1u, 0u, phases[phase], BLU2USB_UI_TONE_STATIC);
+        (void)snprintf(text, sizeof(text), "SEARCH %u FOUND %u", (unsigned)(p.attempt % 1000u), (unsigned)(p.found % 100u));
+        (void)blu2usb_ui_frame_set_text(frame, 2u, 0u, phase == BLU2USB_KEYBOARD_PAIR_ERROR && p.last_phase < BLU2USB_KEYBOARD_PAIR_ERROR
+            ? phases[p.last_phase] : text, BLU2USB_UI_TONE_STATIC);
+        if (p.error) {
+            (void)snprintf(text, sizeof(text), "ERROR %02X", p.error);
+            (void)blu2usb_ui_frame_set_text(frame, 3u, 0u, text, BLU2USB_UI_TONE_STATIC);
+        }
+        (void)blu2usb_ui_frame_set_text(frame, 4u, 0u,
+            phase == BLU2USB_KEYBOARD_PAIR_ERROR ? "RETRY OR POWER CYCLE" : "PAIRING IN PROGRESS",
+            BLU2USB_UI_TONE_STATIC);
+        return;
+    }
 
     char code[BLU2USB_RENDERER_TEXT_COLS + 1u];
     clear_row(frame, 1u);

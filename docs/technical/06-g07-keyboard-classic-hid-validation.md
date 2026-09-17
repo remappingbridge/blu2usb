@@ -59,7 +59,7 @@ The CYW43 is shared by BLE HOGP Mouse and BR/EDR Classic HID Keyboard. `PAIR KEY
 - if BLE is only scanning for a Mouse, that LE scan is stopped before Classic inquiry begins;
 - if BLE is attempting an outgoing bonded reconnect, that initiation is cancelled and Classic waits until the controller is quiescent;
 - an already-ready BLE Mouse session is **not disconnected**; the Classic inquiry/connection runs alongside the existing Mouse ACL, as proven by the original PICO-08 coexistence implementation;
-- if `gap_inquiry_start()` temporarily reports controller busy, the pairing transaction remains active and automatically retries from the BTstack run-loop every 50 ms instead of consuming the request and freezing the UI on `SEARCHING KEYBOARD`;
+- if `gap_inquiry_start()` temporarily reports controller busy, the pairing transaction remains active and services the transaction every 50 ms, retries rejected submissions after a 1 s backoff, and reports an error after three consecutive rejections instead of freezing the UI on `SEARCHING KEYBOARD`;
 - after Keyboard success or cancellation, BLE discovery/reconnect resumes automatically when no Mouse is already ready;
 - HCI disconnect events are ownership-filtered: a Classic Keyboard disconnect must never be interpreted as the BLE Mouse disconnect, and vice versa.
 
@@ -173,3 +173,121 @@ Then disconnect the Keyboard, start `PAIR KEYBOARD` with the target unavailable,
 ## Gate close
 
 G07 is accepted only when final-head CI is green and all applicable G07-01 through G07-10 scenarios pass on the exact production UF2. Keep its PR draft and do not merge automatically.
+
+## 2026-09-17 investigation: distinguish software proof from physical cause
+
+Inspected development HEAD: `9a9d96fe2ec008e786cefaceb5b5660434d7fd75`.
+The only commit after the physically failing `a3cc04c9fd5f169e7d4401479a1ed1faa67fae82`
+at investigation start changed memory limits; it did not add a state watchdog.
+Reference: `picow-mouse-remapper`, branch `feat/pico-08-classic-keyboard-integration`,
+SHA `0d917e58e73acf4333d7bc773186f97898ee3ffa`.
+SDK: Pico SDK 2.2.0 (`a1438dff1d38bd9c65dbd693f0e5db4b9ae91779`),
+BTstack submodule `501e6d2b86e6c92bfb9c390bcf55709938e25ac1`.
+
+### Proven defect and evidence boundary
+
+`gap_inquiry_start()` returning success means the host accepted/enqueued the
+request. It does **not** mean the controller accepted HCI Inquiry. In the pinned
+BTstack `src/hci.c`, `hci_handle_command_status()` handles a rejected
+`HCI_OPCODE_HCI_INQUIRY` by returning its private inquiry state to IDLE, without
+emitting `GAP_EVENT_INQUIRY_COMPLETE`. The old adapter ignored Command Status,
+remained in `CLASSIC_HID_STATE_INQUIRY`, and its timer only retried in IDLE.
+This is a deterministic software deadlock, reproduced by compiling the original
+production adapter into the new event-driven host harness. It fails the
+`inquiries == 2` assertion after injecting successful API submission followed by
+controller status `0x0c`. The corrected adapter passes the same scenario.
+
+This does **not** prove that the physical BKB-3G run actually received status
+`0x0c`, or that this is its only cause. No controller capture or new physical test
+was available during code investigation. The next UF2 is a correction candidate,
+not physical acceptance. The old PR description's radio-contention explanation
+was not established as the physical root cause by the failed firmware.
+
+Memory sizing, report-mode selection and BLE arbitration cannot repair this
+host/controller state divergence. The earlier retry inspected only the immediate
+API return; it could not see an asynchronous rejection. No further memory sizing
+or multicore change is made by this correction.
+
+Additional demonstrated code defects corrected:
+
+- Pair requests consumed while `g_stack_working` was false are now retained as an
+  active transaction until WORKING or a bounded startup failure.
+- Cancellation changes application state before calling `gap_inquiry_stop()`;
+  that SDK function can synchronously emit completion for a queued request.
+- A queued inquiry is not treated as active/cancelable until controller ACK;
+  late ACK after cancellation triggers cleanup, not name discovery.
+- Late name/descriptor events cannot complete an aborted pair transaction;
+  name requests are correlated with their pending address and HID events with CID.
+- Startup session setup and power-on are serialized under the existing async
+  context lock. The shared core-0 architecture is retained.
+
+### Full boot-to-keyboard trace and comparison with the working reference
+
+| Stage | Current execution / old reference comparison |
+|---|---|
+| 1–3: boot and facade | `main` registers vendor backend, then `keyboard_transport_pico_start` registers `classic_hid_session_setup`; runtime queue reset does not clear this registration. Old code called `classic_keyboard_core1_init` from `btstack_main`. |
+| 4–6: runtime | `ble_hogp_start` calls `bt_runtime_start`; `cyw43_arch_init` initializes memory, async run loop, HCI transport and TLV via SDK `btstack_cyw43_init`. Old `picow_bt_example_init` performs the same SDK initialization. |
+| 7–8: services | Both paths call `l2cap_init`, `sm_init`, GATT client, ATT server and HIDS client. No separate SDP server/RFCOMM initialization is required for outgoing HID-host SDP queries. Old BLE IO capability was DISPLAY_ONLY; current BLE NO_INPUT_NO_OUTPUT preserves accepted Mouse behavior. Classic separately selects DISPLAY_ONLY in both. |
+| 9–11: registration/power | BLE setup then all registered setups execute before `hci_power_control`. Classic calls `hid_host_init` and registers both HID and HCI handlers before power-on. Old registers Classic before BLE HCI handler. Both are registered before WORKING; no callback removal occurs. New critical section excludes background execution during this sequence. |
+| 12–14: readiness/commands | WORKING moves Classic to IDLE. A 50 ms async timer consumes atomic requests from the HAT release path. Early pair requests are retained. Old reference uses the same timer pattern with a critical-section mailbox. |
+| 15: arbitration | Current code pauses only Mouse discovery/reconnect. READY Mouse ACL is preserved. Old implementation lacks this explicit arbitration; coexistence alone does not prove arbitration was the cause. |
+| 16–18: inquiry | Same 5 × 1.28 s inquiry and RSSI/EIR mode. Submission and controller ACK are now distinct product phases. Command Status errors retry after 1 s, at most three consecutive failures; results/completion are delivered to the registered HCI handler. Healthy empty inquiries continue searching. |
+| 19–20: names | Same stored address, page-scan repetition mode, clock offset with valid bit and exact target names. Only the outstanding address can finish name resolution. Missing name completion reaches explicit error after 10 s. |
+| 21–22: HID/authentication | Same outgoing `hid_host_connect(..., HID_PROTOCOL_MODE_REPORT, ...)` and incoming accept path. Same sniff/role-switch default policy, master role, discoverable setting, DISPLAY_ONLY SSP and legacy `0000`. PIN is shown on LCD; no terminal required. |
+| 23–25: descriptor/input | Both wait for HID descriptor and parse reports. Current adapter validates Keyboard usage page, then publishes CONNECTED and canonical physical Keyboard events through the runtime/facade. UI transitions to SAVED; aggregator retains separate synthetic Escape ownership. Late events from cancelled attempts cannot commit. |
+| Run loop/Core/stack | Old main allocates an 8 KiB Core1 stack and calls run-loop execute. SDK `btstack_run_loop_async_context.c` processes timers from its pending worker; the background worker does not depend on the blocking execute loop. No evidence requires moving the current runtime to Core1. No stack-size change is inferred from the old design. |
+| TLV/persistence | SDK `setup_tlv` installs Classic link-key DB and LE DB when both features are compiled. Old reference also stores a peer address for autonomous reconnect; G07 does not add that later registry behavior. Product flash sectors and SDK tail sectors remain untouched and separate. |
+| Compilation/coexistence | Current CMake materializes BLE + Classic base code in one runtime archive; adapter libraries consume SDK headers. Two HCI ACL slots and one HID Host slot remain. The old project links both protocols directly into one executable. |
+
+### Bounded failure and ownership policy
+
+| Waiting phase | Bound / recovery |
+|---|---|
+| Stack readiness or Mouse discovery cancellation/security setup | 15 s; explicit error and release discovery suppression. A pending LE cancel is still owned by BLE and handled by its eventual completion. No connected Mouse is disconnected. |
+| Inquiry submission/ACK/completion | 10 s; explicit error, stop only an ACKed inquiry, and retain pending ownership until completion. An ACK arriving after abort is cancelled. |
+| API/controller rejection | Back off 1 s, retry only after the rejection makes inquiry idle; stop after three consecutive failures and display the actual status byte. |
+| Remote name | 10 s; terminate the user transaction, release Mouse discovery and retain the pending address until its completion. The pinned SDK has no GAP name-cancel API that safely resets its private state; do not fake IDLE or overwrite it. |
+| HID connect / descriptor | 30 s per phase; disconnect owned HID CID, reject late descriptor, retain CID until failure/close. `hid_host_disconnect` can be a no-op during SDP with no control channel; do not falsely claim resource cleanup. Late OPENED is disconnected. |
+| User PIN entry | 60 s from PIN notification. |
+| Entire command service stops producing updates | Independent main-loop watch: 90 s, LCD error F2, post cancellation; HAT/USB main loop remains active. This cannot recover a completely hung CPU. |
+
+`ERROR F0` is a phase deadline; `ERROR F1` means the previous operation still
+owns a resource and cannot safely be reused; `ERROR F2` means no product update
+was received by the independent watch. Other error bytes are operation status.
+The error screen retains the last phase on row 2. Retry is allowed when owned
+operations have drained. If the controller never completes cleanup, a full power
+cycle is explicitly required; resetting the shared radio would break a working
+Mouse and is not used. Normal cancellation immediately resumes Mouse discovery.
+
+### Automated evidence
+
+- All assertion-based host tests now compile with `-UNDEBUG`, including Release CI.
+  Previously Release removed assertions from several test executables.
+- Enabling those checks exposed stale G02 expected text/columns. Only the test
+  expectations were updated to the already accepted G04 title `PRESS TO LEARN A KEY`
+  and 1-based column 16; no accepted screen geometry was changed.
+- `g07_classic_adapter_async` compiles the actual production adapter against a
+  deterministic BTstack test double (not a second state-machine implementation).
+  It injects early WORKING, asynchronous rejection, missing ACK/completion, radio
+  timeout, name timeout/late response, connect timeout, late descriptor, foreign
+  CID, cancellation, repeated rejection and successful descriptor completion.
+- Runtime progress decoding and LCD phases/error retention/hint geometry are tested.
+  The double does not emulate controller firmware, real SDP or RF behavior.
+
+### Focused physical validation before the full G07 suite
+
+Use the exact UF2 from the successful host + RP2350 workflow at the same commit.
+Record the last phase, error byte and search/found counts if a test fails.
+
+| Test | Procedure | Expected |
+|---|---|---|
+| T1 | Full power-cycle, Mouse off, HOME → OTHER OPTIONS → PAIR KEYBOARD, BKB-3G pairing | Advance through search/name/connect/PIN as applicable to KEYBOARD SAVED; no indefinite false SEARCHING. |
+| T2 | Connect Mouse and confirm movement/click; then pair Keyboard | Keyboard connects, Mouse continues working. |
+| T3 | Pair Keyboard first, then power Mouse on | Mouse connects without dropping Keyboard. Also repeat with Mouse switched on while Keyboard is still pairing. |
+| T4 | Both connected: type, modifiers, movement, click, scroll | Both remain functional. |
+| T5 | Both connected, turn only Keyboard off | Mouse remains usable; held physical Keyboard keys release. |
+| T6 | Both connected, turn only Mouse off | Keyboard remains usable. |
+| T7 | Start Keyboard pairing without a target; cancel with Key B | HAT stays responsive, returns to OTHER OPTIONS, Mouse discovery/reconnect resumes. |
+
+Only after T1–T7 pass should the full G07-01 through G07-10 suite above run.
+G07 remains unaccepted, PR #9 remains draft, and no merge or next gate is authorized.

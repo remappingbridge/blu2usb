@@ -36,6 +36,7 @@ bool blu2usb_bt_runtime_start(blu2usb_bt_runtime_session_setup_fn session_setup)
      * low-priority async context. BLE and Classic adapters share this owner. */
     if (cyw43_arch_init() != 0) return false;
 
+    async_context_acquire_lock_blocking(cyw43_arch_async_context());
     l2cap_init();
     sm_init();
     sm_set_io_capabilities(IO_CAPABILITY_NO_INPUT_NO_OUTPUT);
@@ -49,5 +50,6 @@ bool blu2usb_bt_runtime_start(blu2usb_bt_runtime_session_setup_fn session_setup)
 
     hci_power_control(HCI_POWER_ON);
     g_started = true;
+    async_context_release_lock(cyw43_arch_async_context());
     return true;
 }

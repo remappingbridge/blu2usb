@@ -21,6 +21,29 @@
 
 #define BLU2USB_RUNTIME_MESSAGES_PER_TICK 32u
 
+/* Independent of the adapter timer: even a stopped command service must not
+ * leave a product search screen indefinitely claiming activity. */
+static bool g_keyboard_pair_watch_active;
+static uint32_t g_keyboard_pair_last_update;
+static void watch_keyboard_pairing(void)
+{
+    g_keyboard_pair_watch_active = true;
+    g_keyboard_pair_last_update = to_ms_since_boot(get_absolute_time());
+}
+static bool check_keyboard_pairing_watch(void)
+{
+    const uint32_t now = to_ms_since_boot(get_absolute_time());
+    if (!g_keyboard_pair_watch_active || !blu2usb_keyboard_transport_progress_expired(now, g_keyboard_pair_last_update))
+        return false;
+    g_keyboard_pair_watch_active = false;
+    blu2usb_keyboard_pair_progress_t progress = blu2usb_ux_keyboard_pair_progress();
+    progress.phase = BLU2USB_KEYBOARD_PAIR_ERROR;
+    progress.error = 0xf2u;
+    blu2usb_ux_set_keyboard_pair_progress(progress);
+    (void)blu2usb_keyboard_transport_pico_cancel();
+    return true;
+}
+
 static bool render_state(const blu2usb_display_hal_t *display,
                          const blu2usb_ux_model_t *ux)
 {
@@ -177,17 +200,20 @@ static void handle_ux_command(blu2usb_ux_model_t *ux,
     blu2usb_mouse_profile_config_t candidate;
     switch (command.kind) {
     case BLU2USB_UX_COMMAND_PAIR_KEYBOARD:
+        blu2usb_ux_set_keyboard_pair_progress((blu2usb_keyboard_pair_progress_t){0});
         blu2usb_ux_clear_keyboard_pair_code();
         if (blu2usb_ux_keyboard_connected()) {
             ux->screen = BLU2USB_SCREEN_KEYBOARD_SAVED;
             ux->selection = 0u;
         } else {
+            watch_keyboard_pairing();
             (void)blu2usb_keyboard_transport_pico_pair();
         }
         break;
     case BLU2USB_UX_COMMAND_RETRY:
         if (ux->screen == BLU2USB_SCREEN_PAIR_KEYBOARD) {
             blu2usb_ux_clear_keyboard_pair_code();
+            watch_keyboard_pairing();
             (void)blu2usb_keyboard_transport_pico_retry();
         }
         break;
@@ -253,8 +279,16 @@ static bool service_runtime_messages(blu2usb_ux_model_t *ux,
 
         blu2usb_keyboard_transport_event_t keyboard_event;
         if (blu2usb_keyboard_transport_decode_runtime_message(&message, &keyboard_event)) {
+            g_keyboard_pair_last_update = to_ms_since_boot(get_absolute_time());
             switch (keyboard_event.type) {
+            case BLU2USB_KEYBOARD_TRANSPORT_EVENT_PROGRESS:
+                if (keyboard_event.progress.phase == BLU2USB_KEYBOARD_PAIR_ERROR)
+                    g_keyboard_pair_watch_active = false;
+                blu2usb_ux_set_keyboard_pair_progress(keyboard_event.progress);
+                ui_changed = true;
+                break;
             case BLU2USB_KEYBOARD_TRANSPORT_EVENT_CONNECTED:
+                g_keyboard_pair_watch_active = false;
                 blu2usb_ux_set_keyboard_connected(true);
                 if (ux != NULL &&
                     (ux->screen == BLU2USB_SCREEN_PAIR_KEYBOARD ||
@@ -374,9 +408,10 @@ int main(void)
 
     for (;;) {
         blu2usb_usb_hid_pico_task();
-        const bool bt_ui_changed =
+        bool bt_ui_changed =
             service_runtime_messages(&ux, &aggregator, &remap,
                                      &last_mouse_valid, &last_keyboard_valid);
+        bt_ui_changed |= check_keyboard_pairing_watch();
         if (bt_ui_changed && !blu2usb_interaction_is_locked(&ux.interaction))
             (void)render_state(&display, &ux);
         service_usb_mouse(&aggregator, &last_mouse_buttons, &last_mouse_valid);
@@ -394,6 +429,7 @@ int main(void)
                 ux.screen != BLU2USB_SCREEN_PAIR_KEYBOARD &&
                 ux.screen != BLU2USB_SCREEN_PAIR_KEYBOARD_HELP &&
                 !blu2usb_ux_keyboard_connected()) {
+                g_keyboard_pair_watch_active = false;
                 (void)blu2usb_keyboard_transport_pico_cancel();
                 blu2usb_ux_clear_keyboard_pair_code();
             }

@@ -114,10 +114,29 @@ static void test_keyboard_transport_decodes_classic_messages(void)
     memcpy(message.payload, &code, sizeof(code));
     CHECK(blu2usb_keyboard_transport_decode_runtime_message(&message, &event));
     CHECK(event.pair_code.digits == 4u);
+    blu2usb_keyboard_pair_progress_t progress = {0};
+    progress.phase = BLU2USB_KEYBOARD_PAIR_SEARCHING;
+    progress.attempt = 3;
+    message.type = BLU2USB_CLASSIC_HID_MESSAGE_PROGRESS;
+    message.length = sizeof(progress);
+    memcpy(message.payload, &progress, sizeof(progress));
+    CHECK(blu2usb_keyboard_transport_decode_runtime_message(&message, &event));
+    CHECK(event.type == BLU2USB_KEYBOARD_TRANSPORT_EVENT_PROGRESS);
+    CHECK(event.progress.attempt == 3);
+    --message.length;
+    CHECK(!blu2usb_keyboard_transport_decode_runtime_message(&message, &event));
+    message.length = sizeof(progress);
+    progress.phase = 255;
+    memcpy(message.payload, &progress, sizeof(progress));
+    CHECK(!blu2usb_keyboard_transport_decode_runtime_message(&message, &event));
 }
 
 int main(void)
 {
+    CHECK(!blu2usb_keyboard_transport_progress_expired(90099u, 100u));
+    CHECK(blu2usb_keyboard_transport_progress_expired(90100u, 100u));
+    CHECK(!blu2usb_keyboard_transport_progress_expired(50u, UINT32_MAX - 50u));
+    CHECK(blu2usb_keyboard_transport_progress_expired(90000u, UINT32_MAX - 50u));
     test_state_diff_and_synthetic_coexistence();
     test_keyboard_transport_decodes_classic_messages();
     puts("G07 Keyboard transport tests passed");

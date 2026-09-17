@@ -103,3 +103,14 @@ void blu2usb_ux_profile_applied(blu2usb_ux_model_t *ux,
         break;
     }
 }
+
+static blu2usb_keyboard_pair_progress_t g_keyboard_progress;
+void blu2usb_ux_set_keyboard_pair_progress(blu2usb_keyboard_pair_progress_t progress)
+{
+    g_keyboard_progress = progress;
+    blu2usb_ux_clear_keyboard_pair_code();
+}
+blu2usb_keyboard_pair_progress_t blu2usb_ux_keyboard_pair_progress(void)
+{
+    return g_keyboard_progress;
+}

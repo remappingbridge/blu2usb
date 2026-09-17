@@ -16,6 +16,10 @@ bool blu2usb_keyboard_transport_decode_runtime_message(
 
     memset(event, 0, sizeof(*event));
     switch (classic_event.type) {
+    case BLU2USB_CLASSIC_HID_EVENT_PROGRESS:
+        event->type = BLU2USB_KEYBOARD_TRANSPORT_EVENT_PROGRESS;
+        event->progress = classic_event.progress;
+        return true;
     case BLU2USB_CLASSIC_HID_EVENT_CONNECTED:
         event->type = BLU2USB_KEYBOARD_TRANSPORT_EVENT_CONNECTED;
         return true;
@@ -34,4 +38,9 @@ bool blu2usb_keyboard_transport_decode_runtime_message(
     default:
         return false;
     }
+}
+
+bool blu2usb_keyboard_transport_progress_expired(uint32_t now_ms, uint32_t last_update_ms)
+{
+    return (uint32_t)(now_ms - last_update_ms) >= 90000u;
 }

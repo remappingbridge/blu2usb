@@ -91,6 +91,13 @@ bool blu2usb_classic_hid_decode_runtime_message(
 
     memset(event, 0, sizeof(*event));
     switch ((blu2usb_classic_hid_message_type_t)message->type) {
+    case BLU2USB_CLASSIC_HID_MESSAGE_PROGRESS:
+        if (message->length != sizeof(event->progress)) return false;
+        memcpy(&event->progress, message->payload, sizeof(event->progress));
+        if (event->progress.phase > BLU2USB_KEYBOARD_PAIR_ERROR ||
+            event->progress.last_phase > BLU2USB_KEYBOARD_PAIR_ERROR) return false;
+        event->type = BLU2USB_CLASSIC_HID_EVENT_PROGRESS;
+        return true;
     case BLU2USB_CLASSIC_HID_MESSAGE_CONNECTED:
         if (message->length != 0u) return false;
         event->type = BLU2USB_CLASSIC_HID_EVENT_CONNECTED;

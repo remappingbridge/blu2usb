@@ -187,6 +187,7 @@ if(BLU2USB_BUILD_TESTS)
 
     add_executable(blu2usb_test_bootstrap tests/test_bootstrap.c)
     target_link_libraries(blu2usb_test_bootstrap PRIVATE blu2usb_contract)
+    target_compile_options(blu2usb_test_bootstrap PRIVATE -UNDEBUG)
     add_test(NAME bootstrap_contract COMMAND blu2usb_test_bootstrap)
 
     add_subdirectory(tests)

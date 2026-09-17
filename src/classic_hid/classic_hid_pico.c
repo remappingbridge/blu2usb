@@ -12,6 +12,13 @@
 #define CLASSIC_HID_MAX_DISCOVERED_DEVICES 20u
 #define CLASSIC_HID_DESCRIPTOR_STORAGE_SIZE 1024u
 #define CLASSIC_HID_COMMAND_SERVICE_MS 50u
+#define CLASSIC_HID_RADIO_TIMEOUT_MS 15000u
+#define CLASSIC_HID_INQUIRY_TIMEOUT_MS 10000u
+#define CLASSIC_HID_NAME_TIMEOUT_MS 10000u
+#define CLASSIC_HID_CONNECT_TIMEOUT_MS 30000u
+#define CLASSIC_HID_PIN_TIMEOUT_MS 60000u
+#define CLASSIC_HID_ERROR_TIMEOUT 0xf0u
+#define CLASSIC_HID_ERROR_DRAINING 0xf1u
 
 typedef enum {
     CLASSIC_HID_NAME_UNKNOWN = 0,
@@ -33,10 +40,18 @@ typedef enum {
     CLASSIC_HID_STATE_RESOLVING_NAMES,
     CLASSIC_HID_STATE_CONNECTING,
     CLASSIC_HID_STATE_READY,
+    CLASSIC_HID_STATE_ERROR,
 } classic_hid_state_t;
 
 static classic_hid_state_t g_state;
 static bool g_stack_working;
+static bool g_inquiry_outstanding;
+static bool g_inquiry_accepted;
+static unsigned g_start_failures;
+static int g_name_index = -1;
+static uint32_t g_deadline;
+static uint32_t g_retry_at;
+static blu2usb_keyboard_pair_progress_t g_progress;
 static bool g_pairing_active;
 static bool g_restart_after_close;
 static bool g_resume_ble_after_close;
@@ -61,6 +76,53 @@ static bool publish_status(blu2usb_classic_hid_message_type_t type)
 {
     return blu2usb_bt_runtime_publish(BLU2USB_CLASSIC_HID_RUNTIME_CHANNEL,
                                        (uint16_t)type, NULL, 0u);
+}
+
+static void progress(blu2usb_keyboard_pair_phase_t phase, uint8_t error)
+{
+    if (phase != BLU2USB_KEYBOARD_PAIR_ERROR && phase != BLU2USB_KEYBOARD_PAIR_RETRY)
+        g_progress.last_phase = (uint8_t)phase;
+    g_progress.phase = (uint8_t)phase;
+    g_progress.error = error;
+    g_progress.found = (uint16_t)g_device_count;
+    (void)blu2usb_bt_runtime_publish(BLU2USB_CLASSIC_HID_RUNTIME_CHANNEL,
+        BLU2USB_CLASSIC_HID_MESSAGE_PROGRESS, &g_progress, sizeof(g_progress));
+}
+
+static void deadline_after(uint32_t milliseconds)
+{
+    g_deadline = btstack_run_loop_get_time_ms() + milliseconds;
+}
+
+static bool due(uint32_t deadline)
+{
+    return (int32_t)(btstack_run_loop_get_time_ms() - deadline) >= 0;
+}
+
+/* A missing completion is not permission to reuse a live SDK transaction.
+ * Stop accepting results first, then request cleanup; late events only drain
+ * the outstanding operation. Never reset the shared controller/Mouse ACL. */
+static void fail_pairing(uint8_t error)
+{
+    g_pairing_active = false;
+    g_restart_after_close = false;
+    g_state = CLASSIC_HID_STATE_ERROR;
+    progress(BLU2USB_KEYBOARD_PAIR_ERROR, error);
+    if (g_inquiry_outstanding && g_inquiry_accepted) (void)gap_inquiry_stop();
+    if (g_hid_cid) hid_host_disconnect(g_hid_cid);
+    blu2usb_ble_hogp_pico_resume_discovery_after_classic();
+}
+
+static void retry_inquiry(uint8_t error)
+{
+    if (error != 0u && ++g_start_failures >= 3u) {
+        fail_pairing(error);
+        return;
+    }
+    g_state = CLASSIC_HID_STATE_IDLE;
+    g_retry_at = btstack_run_loop_get_time_ms() + 1000u;
+    deadline_after(CLASSIC_HID_RADIO_TIMEOUT_MS);
+    progress(BLU2USB_KEYBOARD_PAIR_RETRY, error);
 }
 
 static bool publish_keyboard_event(void *context,
@@ -113,19 +175,20 @@ static void connect_target(const bd_addr_t address)
 {
     memcpy(g_target_address, address, sizeof(bd_addr_t));
     g_state = CLASSIC_HID_STATE_CONNECTING;
-    (void)gap_inquiry_stop();
+    deadline_after(CLASSIC_HID_CONNECT_TIMEOUT_MS);
+    progress(BLU2USB_KEYBOARD_PAIR_CONNECTING, 0u);
+    if (g_inquiry_accepted) (void)gap_inquiry_stop();
 
-    uint16_t cid = 0u;
+    g_hid_cid = 0u;
     const uint8_t status = hid_host_connect(
         g_target_address,
         HID_PROTOCOL_MODE_REPORT,
-        &cid);
+        &g_hid_cid);
     if (status != ERROR_CODE_SUCCESS) {
         g_hid_cid = 0u;
-        g_state = CLASSIC_HID_STATE_IDLE;
+        retry_inquiry(status);
         return;
     }
-    g_hid_cid = cid;
 }
 
 static bool start_inquiry(void)
@@ -146,11 +209,18 @@ static bool start_inquiry(void)
     g_descriptor_available = false;
     g_pairing_active = true;
     g_state = CLASSIC_HID_STATE_INQUIRY;
-    if (gap_inquiry_start(CLASSIC_HID_INQUIRY_DURATION_1280MS) != ERROR_CODE_SUCCESS) {
+    g_inquiry_outstanding = true;
+    g_inquiry_accepted = false;
+    ++g_progress.attempt;
+    deadline_after(CLASSIC_HID_INQUIRY_TIMEOUT_MS);
+    progress(BLU2USB_KEYBOARD_PAIR_START_SEARCH, 0u);
+    const uint8_t status = gap_inquiry_start(CLASSIC_HID_INQUIRY_DURATION_1280MS);
+    if (status != ERROR_CODE_SUCCESS) {
         /* Do not consume/freeze the transaction. The command timer retries
          * while pairing remains active, which covers short controller-busy
          * windows after LE scan/connect cancellation. */
-        g_state = CLASSIC_HID_STATE_IDLE;
+        g_inquiry_outstanding = false;
+        retry_inquiry(status);
         return false;
     }
     return true;
@@ -162,11 +232,15 @@ static void request_next_remote_name(void)
     for (unsigned i = 0u; i < g_device_count; ++i) {
         if (g_devices[i].name_state != CLASSIC_HID_NAME_UNKNOWN) continue;
         g_devices[i].name_state = CLASSIC_HID_NAME_REQUESTED;
+        g_name_index = (int)i;
+        deadline_after(CLASSIC_HID_NAME_TIMEOUT_MS);
+        progress(BLU2USB_KEYBOARD_PAIR_READ_NAME, 0u);
         const int status = gap_remote_name_request(
             g_devices[i].address,
             g_devices[i].page_scan_repetition_mode,
             (uint16_t)(g_devices[i].clock_offset | 0x8000u));
         if (status == ERROR_CODE_SUCCESS) return;
+        g_name_index = -1;
         g_devices[i].name_state = CLASSIC_HID_NAME_RESOLVED;
     }
     if (g_pairing_active) {
@@ -180,7 +254,7 @@ static void request_next_remote_name(void)
 
 static void handle_inquiry_result(uint8_t *packet)
 {
-    if (g_state != CLASSIC_HID_STATE_INQUIRY) return;
+    if (!g_pairing_active || g_state != CLASSIC_HID_STATE_INQUIRY) return;
 
     bd_addr_t address;
     gap_event_inquiry_result_get_bd_addr(packet, address);
@@ -207,14 +281,17 @@ static void handle_inquiry_result(uint8_t *packet)
     device->name_state = gap_event_inquiry_result_get_name_available(packet)
         ? CLASSIC_HID_NAME_RESOLVED
         : CLASSIC_HID_NAME_UNKNOWN;
+    progress(BLU2USB_KEYBOARD_PAIR_SEARCHING, 0u);
 }
 
 static void handle_remote_name_complete(uint8_t *packet)
 {
-    if (g_state != CLASSIC_HID_STATE_RESOLVING_NAMES) return;
     bd_addr_t address;
     reverse_bd_addr(&packet[3], address);
     const int index = device_index_for_address(address);
+    if (index < 0 || index != g_name_index) return;
+    g_name_index = -1;
+    if (!g_pairing_active || g_state != CLASSIC_HID_STATE_RESOLVING_NAMES) return;
     if (index >= 0) {
         g_devices[index].name_state = CLASSIC_HID_NAME_RESOLVED;
         if (packet[2] == ERROR_CODE_SUCCESS) {
@@ -247,7 +324,8 @@ static bool descriptor_has_keyboard(uint16_t cid)
 
 static void handle_hid_report(uint8_t *packet)
 {
-    if (!g_descriptor_available || g_state != CLASSIC_HID_STATE_READY) return;
+    if (!g_descriptor_available || g_state != CLASSIC_HID_STATE_READY ||
+        hid_subevent_report_get_hid_cid(packet) != g_hid_cid) return;
     const uint8_t *report = hid_subevent_report_get_report(packet);
     const uint16_t report_len = hid_subevent_report_get_report_len(packet);
     if (report == NULL || report_len < 2u || report[0] != 0xa1u) return;
@@ -302,17 +380,44 @@ static void packet_handler(uint8_t packet_type, uint16_t channel,
                 g_state = CLASSIC_HID_STATE_IDLE;
         }
         break;
+    case HCI_EVENT_COMMAND_STATUS:
+        /* API acceptance only enqueues a command. BTstack 2.2.0's pinned
+         * hci.c clears inquiry_state on rejection without emitting GAP complete. */
+        if (hci_event_command_status_get_command_opcode(packet) == HCI_OPCODE_HCI_INQUIRY &&
+            g_inquiry_outstanding) {
+            const uint8_t status = hci_event_command_status_get_status(packet);
+            if (status != ERROR_CODE_SUCCESS) {
+                g_inquiry_outstanding = false;
+                if (g_pairing_active && g_state == CLASSIC_HID_STATE_INQUIRY)
+                    retry_inquiry(status);
+            } else {
+                g_inquiry_accepted = true;
+                g_start_failures = 0u;
+                if (g_pairing_active && g_state == CLASSIC_HID_STATE_INQUIRY)
+                    progress(BLU2USB_KEYBOARD_PAIR_SEARCHING, 0u);
+                else
+                    (void)gap_inquiry_stop();
+            }
+        }
+        break;
     case GAP_EVENT_INQUIRY_RESULT:
         handle_inquiry_result(packet);
         break;
     case GAP_EVENT_INQUIRY_COMPLETE:
-        if (g_state == CLASSIC_HID_STATE_INQUIRY) request_next_remote_name();
+        g_inquiry_outstanding = false;
+        g_inquiry_accepted = false;
+        if (g_pairing_active && g_state == CLASSIC_HID_STATE_INQUIRY) {
+            if (packet[2] != 0u) retry_inquiry(packet[2]);
+            else request_next_remote_name();
+        }
         break;
     case HCI_EVENT_REMOTE_NAME_REQUEST_COMPLETE:
         handle_remote_name_complete(packet);
         break;
     case HCI_EVENT_PIN_CODE_REQUEST:
         hci_event_pin_code_request_get_bd_addr(packet, event_address);
+        if (g_state != CLASSIC_HID_STATE_CONNECTING) break;
+        deadline_after(CLASSIC_HID_PIN_TIMEOUT_MS);
         publish_pair_code(0u, 4u);
         gap_pin_code_response(event_address, "0000");
         break;
@@ -321,18 +426,27 @@ static void packet_handler(uint8_t packet_type, uint16_t channel,
         gap_ssp_confirmation_response(event_address);
         break;
     case HCI_EVENT_USER_PASSKEY_NOTIFICATION:
+        if (g_state != CLASSIC_HID_STATE_CONNECTING) break;
+        deadline_after(CLASSIC_HID_PIN_TIMEOUT_MS);
         publish_pair_code(little_endian_read_32(packet, 8u), 6u);
         break;
     case HCI_EVENT_HID_META:
         switch (hci_event_hid_meta_get_subevent_code(packet)) {
         case HID_SUBEVENT_INCOMING_CONNECTION:
+            if (g_hid_cid != 0u || g_state == CLASSIC_HID_STATE_ERROR) {
+                (void)hid_host_decline_connection(hid_subevent_incoming_connection_get_hid_cid(packet));
+                break;
+            }
+            deadline_after(CLASSIC_HID_CONNECT_TIMEOUT_MS);
+            progress(BLU2USB_KEYBOARD_PAIR_CONNECTING, 0u);
             g_hid_cid = hid_subevent_incoming_connection_get_hid_cid(packet);
             g_state = CLASSIC_HID_STATE_CONNECTING;
-            (void)gap_inquiry_stop();
+            if (g_inquiry_accepted) (void)gap_inquiry_stop();
             hid_host_accept_connection(
                 g_hid_cid, HID_PROTOCOL_MODE_REPORT);
             break;
         case HID_SUBEVENT_CONNECTION_OPENED: {
+            if (hid_subevent_connection_opened_get_hid_cid(packet) != g_hid_cid) break;
             const uint8_t status = hid_subevent_connection_opened_get_status(packet);
             if (status != ERROR_CODE_SUCCESS) {
                 g_hid_cid = 0u;
@@ -344,6 +458,12 @@ static void packet_handler(uint8_t packet_type, uint16_t channel,
                 }
                 break;
             }
+            if (g_state == CLASSIC_HID_STATE_ERROR || g_resume_ble_after_close || g_restart_after_close) {
+                hid_host_disconnect(g_hid_cid);
+                break;
+            }
+            deadline_after(CLASSIC_HID_CONNECT_TIMEOUT_MS);
+            progress(BLU2USB_KEYBOARD_PAIR_SETUP, 0u);
             g_hid_cid = hid_subevent_connection_opened_get_hid_cid(packet);
             g_descriptor_available = false;
             blu2usb_classic_hid_keyboard_state_clear(&g_keyboard_state);
@@ -351,6 +471,9 @@ static void packet_handler(uint8_t packet_type, uint16_t channel,
             break;
         }
         case HID_SUBEVENT_DESCRIPTOR_AVAILABLE: {
+            if (hid_subevent_descriptor_available_get_hid_cid(packet) != g_hid_cid ||
+                g_state != CLASSIC_HID_STATE_CONNECTING || g_resume_ble_after_close ||
+                g_restart_after_close) break;
             const uint8_t status = hid_subevent_descriptor_available_get_status(packet);
             if (status != ERROR_CODE_SUCCESS || !descriptor_has_keyboard(g_hid_cid)) {
                 g_restart_after_close = g_pairing_active;
@@ -370,6 +493,7 @@ static void packet_handler(uint8_t packet_type, uint16_t channel,
             handle_hid_report(packet);
             break;
         case HID_SUBEVENT_CONNECTION_CLOSED: {
+            if (hid_subevent_connection_closed_get_hid_cid(packet) != g_hid_cid) break;
             const bool was_ready = g_state == CLASSIC_HID_STATE_READY;
             if (was_ready) {
                 release_all_keyboard_state();
@@ -401,57 +525,48 @@ static void packet_handler(uint8_t packet_type, uint16_t channel,
 
 static void service_command_requests(void)
 {
-    if (atomic_exchange_explicit(&g_cancel_requested, false, memory_order_acq_rel)) {
+    const bool cancel = atomic_exchange_explicit(&g_cancel_requested, false, memory_order_acq_rel);
+    const bool retry = atomic_exchange_explicit(&g_retry_requested, false, memory_order_acq_rel);
+    const bool pair = atomic_exchange_explicit(&g_pair_requested, false, memory_order_acq_rel);
+    if (cancel) {
         g_pairing_active = false;
         g_restart_after_close = false;
-        if (g_state == CLASSIC_HID_STATE_INQUIRY ||
-            g_state == CLASSIC_HID_STATE_RESOLVING_NAMES) {
-            (void)gap_inquiry_stop();
+        if (g_state != CLASSIC_HID_STATE_READY) {
+            /* Change state BEFORE gap_inquiry_stop(): queued inquiries may
+             * synchronously emit GAP_EVENT_INQUIRY_COMPLETE from that call. */
             g_state = CLASSIC_HID_STATE_IDLE;
-            blu2usb_ble_hogp_pico_resume_discovery_after_classic();
-        } else if (g_state == CLASSIC_HID_STATE_CONNECTING && g_hid_cid != 0u) {
-            g_resume_ble_after_close = true;
-            hid_host_disconnect(g_hid_cid);
-        } else if (g_state != CLASSIC_HID_STATE_READY) {
-            g_state = CLASSIC_HID_STATE_IDLE;
-            blu2usb_ble_hogp_pico_resume_discovery_after_classic();
+            g_resume_ble_after_close = g_hid_cid != 0u;
+            if (g_inquiry_outstanding && g_inquiry_accepted) (void)gap_inquiry_stop();
+            if (g_hid_cid) hid_host_disconnect(g_hid_cid);
         }
+        blu2usb_ble_hogp_pico_resume_discovery_after_classic();
+        return;
     }
+    if (g_state == CLASSIC_HID_STATE_READY) return;
 
-    const bool retry = atomic_exchange_explicit(
-        &g_retry_requested, false, memory_order_acq_rel);
-    const bool pair = atomic_exchange_explicit(
-        &g_pair_requested, false, memory_order_acq_rel);
-    if (!g_stack_working || g_state == CLASSIC_HID_STATE_READY) return;
-
-    if (retry) {
+    if (pair || retry) {
+        if (g_inquiry_outstanding || g_name_index >= 0 || g_hid_cid != 0u) {
+            fail_pairing(CLASSIC_HID_ERROR_DRAINING);
+            return;
+        }
         g_pairing_active = true;
-        if (g_state == CLASSIC_HID_STATE_INQUIRY ||
-            g_state == CLASSIC_HID_STATE_RESOLVING_NAMES)
-            (void)gap_inquiry_stop();
-        if (g_state == CLASSIC_HID_STATE_CONNECTING && g_hid_cid != 0u) {
-            g_restart_after_close = true;
-            hid_host_disconnect(g_hid_cid);
-        } else {
-            g_state = CLASSIC_HID_STATE_IDLE;
-        }
+        g_restart_after_close = false;
+        g_resume_ble_after_close = false;
+        g_start_failures = 0u;
+        g_retry_at = btstack_run_loop_get_time_ms();
+        deadline_after(CLASSIC_HID_RADIO_TIMEOUT_MS);
+        g_state = g_stack_working ? CLASSIC_HID_STATE_IDLE : CLASSIC_HID_STATE_WAITING_FOR_STACK;
+        progress(g_stack_working ? BLU2USB_KEYBOARD_PAIR_WAIT_RADIO : BLU2USB_KEYBOARD_PAIR_STARTING, 0u);
     }
 
-    if (pair) {
-        g_pairing_active = true;
-        if (g_state == CLASSIC_HID_STATE_CONNECTING && g_hid_cid != 0u) {
-            g_restart_after_close = true;
-            hid_host_disconnect(g_hid_cid);
-        } else if (g_state != CLASSIC_HID_STATE_INQUIRY &&
-                   g_state != CLASSIC_HID_STATE_RESOLVING_NAMES) {
-            g_state = CLASSIC_HID_STATE_IDLE;
-        }
+    if (!g_pairing_active && g_hid_cid == 0u) return;
+    if (g_state != CLASSIC_HID_STATE_ERROR && due(g_deadline)) {
+        fail_pairing(CLASSIC_HID_ERROR_TIMEOUT);
+        return;
     }
-
-    /* Crucially, pairing remains a level-triggered transaction. If the
-     * controller was busy and start_inquiry() could not start BR/EDR inquiry,
-     * this timer retries every 50 ms instead of consuming the request forever. */
-    if (g_pairing_active && g_state == CLASSIC_HID_STATE_IDLE)
+    if (!g_stack_working) return;
+    if (g_pairing_active && g_state == CLASSIC_HID_STATE_IDLE &&
+        !g_inquiry_outstanding && g_name_index < 0 && g_hid_cid == 0u && due(g_retry_at))
         (void)start_inquiry();
 }
 
@@ -467,6 +582,11 @@ static void classic_hid_session_setup(void)
 {
     g_state = CLASSIC_HID_STATE_WAITING_FOR_STACK;
     g_stack_working = false;
+    g_inquiry_outstanding = false;
+    g_inquiry_accepted = false;
+    g_start_failures = 0u;
+    g_name_index = -1;
+    memset(&g_progress, 0, sizeof(g_progress));
     g_pairing_active = false;
     g_restart_after_close = false;
     g_resume_ble_after_close = false;

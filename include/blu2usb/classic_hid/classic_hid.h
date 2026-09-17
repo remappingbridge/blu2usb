@@ -7,6 +7,7 @@
 
 #include "blu2usb/bt_runtime/bt_runtime.h"
 #include "blu2usb/domain/hid.h"
+#include "blu2usb/domain/keyboard_pairing.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -21,6 +22,7 @@ typedef enum {
     BLU2USB_CLASSIC_HID_MESSAGE_DISCONNECTED = 2,
     BLU2USB_CLASSIC_HID_MESSAGE_KEYBOARD = 3,
     BLU2USB_CLASSIC_HID_MESSAGE_PAIR_CODE = 4,
+    BLU2USB_CLASSIC_HID_MESSAGE_PROGRESS = 5,
 } blu2usb_classic_hid_message_type_t;
 
 typedef enum {
@@ -28,6 +30,7 @@ typedef enum {
     BLU2USB_CLASSIC_HID_EVENT_DISCONNECTED,
     BLU2USB_CLASSIC_HID_EVENT_KEYBOARD,
     BLU2USB_CLASSIC_HID_EVENT_PAIR_CODE,
+    BLU2USB_CLASSIC_HID_EVENT_PROGRESS,
 } blu2usb_classic_hid_event_type_t;
 
 typedef struct {
@@ -39,6 +42,7 @@ typedef struct {
     blu2usb_classic_hid_event_type_t type;
     blu2usb_canonical_keyboard_event_t keyboard;
     blu2usb_classic_hid_pair_code_t pair_code;
+    blu2usb_keyboard_pair_progress_t progress;
 } blu2usb_classic_hid_event_t;
 
 typedef struct {

@@ -124,6 +124,34 @@ static void test_keyboard_saved_back_returns_other_options(void)
     assert(ux.screen == BLU2USB_SCREEN_OTHER_OPTIONS);
 }
 
+static void test_pair_progress_preserves_geometry_and_error_stage(void)
+{
+    blu2usb_ux_model_t ux;
+    blu2usb_ui_frame_t frame;
+    init_ux(&ux);
+    ux.screen = BLU2USB_SCREEN_PAIR_KEYBOARD;
+    blu2usb_keyboard_pair_progress_t p = {0};
+    p.phase = BLU2USB_KEYBOARD_PAIR_START_SEARCH;
+    p.attempt = 2; p.found = 1;
+    blu2usb_ux_set_keyboard_pair_progress(p);
+    project_physical(&ux, &frame);
+    assert_row_text(&frame, 1u, "STARTING SEARCH");
+    assert_row_text(&frame, 2u, "SEARCH 2 FOUND 1");
+    assert_row_text(&frame, 6u, "KEY A: RETRY ON ERROR");
+    assert_row_text(&frame, 7u, "KEY B: CANCEL");
+    assert_row_text(&frame, 8u, "KEY X: HELP");
+    blu2usb_ux_set_keyboard_pair_code(123456, 6);
+    p.phase = BLU2USB_KEYBOARD_PAIR_ERROR;
+    p.last_phase = BLU2USB_KEYBOARD_PAIR_START_SEARCH;
+    p.error = 0xf0;
+    blu2usb_ux_set_keyboard_pair_progress(p);
+    project_physical(&ux, &frame);
+    assert_row_text(&frame, 1u, "KEYBOARD ERROR");
+    assert_row_text(&frame, 2u, "STARTING SEARCH");
+    assert_row_text(&frame, 3u, "ERROR F0");
+    assert_row_text(&frame, 4u, "RETRY OR POWER CYCLE");
+}
+
 int main(void)
 {
     test_other_devices_status_tracks_keyboard();
@@ -131,5 +159,6 @@ int main(void)
     test_pair_keyboard_pin_projection();
     test_pair_keyboard_success_body_is_cyan();
     test_keyboard_saved_back_returns_other_options();
+    test_pair_progress_preserves_geometry_and_error_stage();
     return 0;
 }
