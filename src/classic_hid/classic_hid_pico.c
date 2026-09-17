@@ -3,6 +3,7 @@
 #include <stdatomic.h>
 #include <string.h>
 
+#include "blu2usb/ble_hogp/ble_hogp.h"
 #include "btstack.h"
 
 #define CLASSIC_HID_TARGET_NAME "Bluetooth keyboard 3.0"
@@ -38,6 +39,7 @@ static classic_hid_state_t g_state;
 static bool g_stack_working;
 static bool g_pairing_active;
 static bool g_restart_after_close;
+static bool g_resume_ble_after_close;
 static bool g_descriptor_available;
 static bool g_registered;
 static uint16_t g_hid_cid;
@@ -52,7 +54,7 @@ static atomic_bool g_pair_requested = ATOMIC_VAR_INIT(false);
 static atomic_bool g_retry_requested = ATOMIC_VAR_INIT(false);
 static atomic_bool g_cancel_requested = ATOMIC_VAR_INIT(false);
 
-static void start_inquiry(void);
+static bool start_inquiry(void);
 static void request_next_remote_name(void);
 
 static bool publish_status(blu2usb_classic_hid_message_type_t type)
@@ -120,22 +122,38 @@ static void connect_target(const bd_addr_t address)
         &cid);
     if (status != ERROR_CODE_SUCCESS) {
         g_hid_cid = 0u;
-        start_inquiry();
+        g_state = CLASSIC_HID_STATE_IDLE;
         return;
     }
     g_hid_cid = cid;
 }
 
-static void start_inquiry(void)
+static bool start_inquiry(void)
 {
-    if (!g_stack_working || g_state == CLASSIC_HID_STATE_READY) return;
+    if (!g_stack_working || g_state == CLASSIC_HID_STATE_READY) return false;
+
+    /* The CYW43 cannot reliably accept a BR/EDR inquiry while the BLE HOGP
+     * adapter owns an LE scan / outgoing reconnect procedure. Quiesce only
+     * that discovery work. A Mouse that is already READY remains connected. */
+    if (!blu2usb_ble_hogp_pico_pause_discovery_for_classic()) {
+        g_pairing_active = true;
+        g_state = CLASSIC_HID_STATE_IDLE;
+        return false;
+    }
+
     g_device_count = 0u;
     memset(g_devices, 0, sizeof(g_devices));
     g_descriptor_available = false;
     g_pairing_active = true;
     g_state = CLASSIC_HID_STATE_INQUIRY;
-    if (gap_inquiry_start(CLASSIC_HID_INQUIRY_DURATION_1280MS) != ERROR_CODE_SUCCESS)
+    if (gap_inquiry_start(CLASSIC_HID_INQUIRY_DURATION_1280MS) != ERROR_CODE_SUCCESS) {
+        /* Do not consume/freeze the transaction. The command timer retries
+         * while pairing remains active, which covers short controller-busy
+         * windows after LE scan/connect cancellation. */
         g_state = CLASSIC_HID_STATE_IDLE;
+        return false;
+    }
+    return true;
 }
 
 static void request_next_remote_name(void)
@@ -151,8 +169,13 @@ static void request_next_remote_name(void)
         if (status == ERROR_CODE_SUCCESS) return;
         g_devices[i].name_state = CLASSIC_HID_NAME_RESOLVED;
     }
-    if (g_pairing_active) start_inquiry();
-    else g_state = CLASSIC_HID_STATE_IDLE;
+    if (g_pairing_active) {
+        g_state = CLASSIC_HID_STATE_IDLE;
+        (void)start_inquiry();
+    } else {
+        g_state = CLASSIC_HID_STATE_IDLE;
+        blu2usb_ble_hogp_pico_resume_discovery_after_classic();
+    }
 }
 
 static void handle_inquiry_result(uint8_t *packet)
@@ -314,8 +337,11 @@ static void packet_handler(uint8_t packet_type, uint16_t channel,
             if (status != ERROR_CODE_SUCCESS) {
                 g_hid_cid = 0u;
                 g_descriptor_available = false;
-                if (g_pairing_active) start_inquiry();
-                else g_state = CLASSIC_HID_STATE_IDLE;
+                if (g_pairing_active) g_state = CLASSIC_HID_STATE_IDLE;
+                else {
+                    g_state = CLASSIC_HID_STATE_IDLE;
+                    blu2usb_ble_hogp_pico_resume_discovery_after_classic();
+                }
                 break;
             }
             g_hid_cid = hid_subevent_connection_opened_get_hid_cid(packet);
@@ -334,7 +360,9 @@ static void packet_handler(uint8_t packet_type, uint16_t channel,
             g_descriptor_available = true;
             g_pairing_active = false;
             g_restart_after_close = false;
+            g_resume_ble_after_close = false;
             g_state = CLASSIC_HID_STATE_READY;
+            blu2usb_ble_hogp_pico_resume_discovery_after_classic();
             (void)publish_status(BLU2USB_CLASSIC_HID_MESSAGE_CONNECTED);
             break;
         }
@@ -350,9 +378,16 @@ static void packet_handler(uint8_t packet_type, uint16_t channel,
             g_hid_cid = 0u;
             g_descriptor_available = false;
             const bool restart = g_restart_after_close;
+            const bool resume_ble = g_resume_ble_after_close;
             g_restart_after_close = false;
-            if (restart && g_pairing_active) start_inquiry();
-            else g_state = CLASSIC_HID_STATE_IDLE;
+            g_resume_ble_after_close = false;
+            if (restart && g_pairing_active) {
+                g_state = CLASSIC_HID_STATE_IDLE;
+            } else {
+                g_state = CLASSIC_HID_STATE_IDLE;
+                if (resume_ble || !g_pairing_active)
+                    blu2usb_ble_hogp_pico_resume_discovery_after_classic();
+            }
             break;
         }
         default:
@@ -373,18 +408,23 @@ static void service_command_requests(void)
             g_state == CLASSIC_HID_STATE_RESOLVING_NAMES) {
             (void)gap_inquiry_stop();
             g_state = CLASSIC_HID_STATE_IDLE;
+            blu2usb_ble_hogp_pico_resume_discovery_after_classic();
         } else if (g_state == CLASSIC_HID_STATE_CONNECTING && g_hid_cid != 0u) {
+            g_resume_ble_after_close = true;
             hid_host_disconnect(g_hid_cid);
+        } else if (g_state != CLASSIC_HID_STATE_READY) {
+            g_state = CLASSIC_HID_STATE_IDLE;
+            blu2usb_ble_hogp_pico_resume_discovery_after_classic();
         }
     }
 
     const bool retry = atomic_exchange_explicit(
         &g_retry_requested, false, memory_order_acq_rel);
-    const bool pair = atomic_load_explicit(&g_pair_requested, memory_order_acquire);
+    const bool pair = atomic_exchange_explicit(
+        &g_pair_requested, false, memory_order_acq_rel);
     if (!g_stack_working || g_state == CLASSIC_HID_STATE_READY) return;
 
     if (retry) {
-        atomic_store_explicit(&g_pair_requested, false, memory_order_release);
         g_pairing_active = true;
         if (g_state == CLASSIC_HID_STATE_INQUIRY ||
             g_state == CLASSIC_HID_STATE_RESOLVING_NAMES)
@@ -393,17 +433,26 @@ static void service_command_requests(void)
             g_restart_after_close = true;
             hid_host_disconnect(g_hid_cid);
         } else {
-            start_inquiry();
+            g_state = CLASSIC_HID_STATE_IDLE;
         }
-        return;
     }
 
     if (pair) {
-        atomic_store_explicit(&g_pair_requested, false, memory_order_release);
-        if (g_state == CLASSIC_HID_STATE_IDLE ||
-            g_state == CLASSIC_HID_STATE_WAITING_FOR_STACK)
-            start_inquiry();
+        g_pairing_active = true;
+        if (g_state == CLASSIC_HID_STATE_CONNECTING && g_hid_cid != 0u) {
+            g_restart_after_close = true;
+            hid_host_disconnect(g_hid_cid);
+        } else if (g_state != CLASSIC_HID_STATE_INQUIRY &&
+                   g_state != CLASSIC_HID_STATE_RESOLVING_NAMES) {
+            g_state = CLASSIC_HID_STATE_IDLE;
+        }
     }
+
+    /* Crucially, pairing remains a level-triggered transaction. If the
+     * controller was busy and start_inquiry() could not start BR/EDR inquiry,
+     * this timer retries every 50 ms instead of consuming the request forever. */
+    if (g_pairing_active && g_state == CLASSIC_HID_STATE_IDLE)
+        (void)start_inquiry();
 }
 
 static void command_timer_handler(btstack_timer_source_t *timer)
@@ -420,6 +469,7 @@ static void classic_hid_session_setup(void)
     g_stack_working = false;
     g_pairing_active = false;
     g_restart_after_close = false;
+    g_resume_ble_after_close = false;
     g_descriptor_available = false;
     g_hid_cid = 0u;
     g_device_count = 0u;
