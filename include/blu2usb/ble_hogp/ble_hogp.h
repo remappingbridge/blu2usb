@@ -114,6 +114,14 @@ bool blu2usb_ble_hogp_decode_runtime_message(const blu2usb_bt_runtime_message_t 
                                               blu2usb_ble_hogp_event_t *event);
 bool blu2usb_ble_hogp_register_vendor_backend(
     const blu2usb_ble_hogp_vendor_backend_t *backend);
+
+/* G07 radio arbitration. These functions are called only from the BTstack
+ * run-loop context by the Classic HID adapter. Pausing discovery never tears
+ * down an already-ready Mouse session; it only quiesces outgoing LE scan /
+ * reconnect work so BR/EDR inquiry can run on the shared CYW43 controller. */
+bool blu2usb_ble_hogp_pico_pause_discovery_for_classic(void);
+void blu2usb_ble_hogp_pico_resume_discovery_after_classic(void);
+
 bool blu2usb_ble_hogp_start(void);
 
 #endif
