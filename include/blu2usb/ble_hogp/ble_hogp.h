@@ -114,6 +114,11 @@ bool blu2usb_ble_hogp_decode_runtime_message(const blu2usb_bt_runtime_message_t 
                                               blu2usb_ble_hogp_event_t *event);
 bool blu2usb_ble_hogp_register_vendor_backend(
     const blu2usb_ble_hogp_vendor_backend_t *backend);
+
+/* Pico facade. Suppression pauses only idle/outgoing BLE discovery work so a
+ * Classic inquiry can own the shared CYW43 radio. An already active Mouse
+ * session is never disconnected by this control. */
+void blu2usb_ble_hogp_pico_set_discovery_suppressed(bool suppressed);
 bool blu2usb_ble_hogp_start(void);
 
 #endif
