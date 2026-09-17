@@ -7,7 +7,7 @@
 
 #include "blu2usb/domain/profile.h"
 
-#define BLU2USB_PROFILE_SERIALIZED_SIZE 8u
+#define BLU2USB_PROFILE_SERIALIZED_SIZE 14u
 
 typedef struct {
     blu2usb_mouse_profile_kind_t active_kind;
