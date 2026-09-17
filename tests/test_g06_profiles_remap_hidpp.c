@@ -24,13 +24,21 @@ static void test_profiles(void)
     blu2usb_profiles_init(&p);
     CHECK(p.active_kind == BLU2USB_MOUSE_PROFILE_PASSTHROUGH);
     blu2usb_mouse_profile_config_t c;
+
     CHECK(blu2usb_profiles_build_preset(BLU2USB_MOUSE_PROFILE_DEFAULT_REMAP, &p, &c));
+    CHECK(c.targets[BLU2USB_MOUSE_SOURCE_LEFT] == BLU2USB_MOUSE_TARGET_FORWARD);
+    CHECK(c.targets[BLU2USB_MOUSE_SOURCE_RIGHT] == BLU2USB_MOUSE_TARGET_BACKWARD);
+    CHECK(c.targets[BLU2USB_MOUSE_SOURCE_MIDDLE] == BLU2USB_MOUSE_TARGET_MIDDLE);
+    CHECK(c.targets[BLU2USB_MOUSE_SOURCE_FORWARD] == BLU2USB_MOUSE_TARGET_LEFT);
+    CHECK(c.targets[BLU2USB_MOUSE_SOURCE_BACKWARD] == BLU2USB_MOUSE_TARGET_RIGHT);
+    CHECK(blu2usb_profiles_requires_forward_held_fix(&c));
+
+    CHECK(blu2usb_profiles_build_preset(BLU2USB_MOUSE_PROFILE_ESCAPE_REMAP, &p, &c));
     CHECK(c.targets[BLU2USB_MOUSE_SOURCE_LEFT] == BLU2USB_MOUSE_TARGET_ESCAPE);
     CHECK(c.targets[BLU2USB_MOUSE_SOURCE_RIGHT] == BLU2USB_MOUSE_TARGET_BACKWARD);
     CHECK(c.targets[BLU2USB_MOUSE_SOURCE_MIDDLE] == BLU2USB_MOUSE_TARGET_FORWARD);
     CHECK(c.targets[BLU2USB_MOUSE_SOURCE_FORWARD] == BLU2USB_MOUSE_TARGET_LEFT);
     CHECK(c.targets[BLU2USB_MOUSE_SOURCE_BACKWARD] == BLU2USB_MOUSE_TARGET_RIGHT);
-    CHECK(blu2usb_profiles_requires_forward_held_fix(&c));
 
     CHECK(blu2usb_profiles_draft_set(&p, BLU2USB_MOUSE_SOURCE_FORWARD,
                                      BLU2USB_MOUSE_TARGET_ESCAPE));
@@ -55,21 +63,19 @@ static void test_remap(void)
     blu2usb_profiles_t p;
     blu2usb_profiles_init(&p);
     blu2usb_mouse_profile_config_t c;
-    CHECK(blu2usb_profiles_build_preset(BLU2USB_MOUSE_PROFILE_DEFAULT_REMAP, &p, &c));
     blu2usb_remap_t remap;
     blu2usb_remap_init(&remap);
-    blu2usb_remap_set_profile(&remap, &c);
     blu2usb_hid_aggregator_t agg;
     blu2usb_hid_aggregator_init(&agg);
     blu2usb_remap_result_t r;
 
+    CHECK(blu2usb_profiles_build_preset(BLU2USB_MOUSE_PROFILE_DEFAULT_REMAP, &p, &c));
+    blu2usb_remap_set_profile(&remap, &c);
+
     blu2usb_canonical_mouse_event_t e = button(BLU2USB_MOUSE_BUTTON_LEFT, true);
     CHECK(blu2usb_remap_process_mouse(&remap, &e, &r));
-    CHECK(!r.has_mouse && r.has_keyboard && r.keyboard.data.key.key == BLU2USB_KEY_ESCAPE);
-    CHECK(blu2usb_hid_aggregator_apply_keyboard(&agg, &r.keyboard));
-    blu2usb_hid_output_state_t out;
-    blu2usb_hid_aggregator_snapshot(&agg, &out);
-    CHECK(blu2usb_hid_output_key_is_down(&out, BLU2USB_KEY_ESCAPE));
+    CHECK(r.has_mouse && !r.has_keyboard);
+    CHECK(r.mouse.data.button.button == BLU2USB_MOUSE_BUTTON_FORWARD);
 
     e = button(BLU2USB_MOUSE_BUTTON_FORWARD, true);
     CHECK(blu2usb_remap_process_mouse(&remap, &e, &r));
@@ -78,6 +84,17 @@ static void test_remap(void)
     e = button(BLU2USB_MOUSE_BUTTON_FORWARD, false);
     CHECK(blu2usb_remap_process_mouse(&remap, &e, &r));
     CHECK(blu2usb_hid_aggregator_apply_mouse(&agg, &r.mouse));
+
+    CHECK(blu2usb_profiles_build_preset(BLU2USB_MOUSE_PROFILE_ESCAPE_REMAP, &p, &c));
+    blu2usb_remap_set_profile(&remap, &c);
+    e = button(BLU2USB_MOUSE_BUTTON_LEFT, true);
+    CHECK(blu2usb_remap_process_mouse(&remap, &e, &r));
+    CHECK(!r.has_mouse && r.has_keyboard && r.keyboard.data.key.key == BLU2USB_KEY_ESCAPE);
+    CHECK(blu2usb_hid_aggregator_apply_keyboard(&agg, &r.keyboard));
+    blu2usb_hid_output_state_t out;
+    blu2usb_hid_aggregator_snapshot(&agg, &out);
+    CHECK(blu2usb_hid_output_key_is_down(&out, BLU2USB_KEY_ESCAPE));
+
     e = button(BLU2USB_MOUSE_BUTTON_LEFT, false);
     CHECK(blu2usb_remap_process_mouse(&remap, &e, &r));
     CHECK(blu2usb_hid_aggregator_apply_keyboard(&agg, &r.keyboard));
