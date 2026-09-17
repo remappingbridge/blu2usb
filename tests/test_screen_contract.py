@@ -13,7 +13,7 @@ for block in blocks:
     for i, row in enumerate(rows, 1):
         assert len(row) <= 21, f'{rows[0]} row {i} exceeds 21 chars: {len(row)} {row!r}'
 
-learn = next(b.splitlines() for b in blocks if b.splitlines()[0] == 'PRESS TO LEAR A KEY')
+learn = next(b.splitlines() for b in blocks if b.splitlines()[0] == 'PRESS TO LEARN A KEY')
 assert learn[1].index('J') == 6
 assert [m.start() for m in re.finditer('JOY', learn[2])] == [0, 7, 14]
 assert learn[3].index('LEFT') == 0 and learn[3].index('PRESS') == 6 and learn[3].index('RIGHT') == 13
@@ -24,7 +24,7 @@ assert learn[7].index('A') == 1
 assert learn[8].index('O') == 2
 
 pair_mouse = next(b.splitlines() for b in blocks if b.splitlines()[0] == 'PAIR MOUSE')
-assert pair_mouse[6:] == ['KEY A: RETRY ON ERROR', 'KEY B: CANCEL', 'KEY C: HELP']
+assert pair_mouse[6:] == ['KEY A: RETRY ON ERROR', 'KEY B: CANCEL', 'KEY X: HELP']
 
 pair_keyboard = next(b.splitlines() for b in blocks if b.splitlines()[0] == 'PAIR KEYBOARD')
 assert pair_keyboard[1] == 'SEARCHING KEYBOARD'
