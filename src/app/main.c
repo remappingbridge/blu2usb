@@ -24,6 +24,7 @@ static bool render_state(const blu2usb_display_hal_t *display,
 {
     blu2usb_ui_frame_t frame;
     blu2usb_ui_project(ux, &frame);
+    blu2usb_ui_enforce_applied_visual_contract(ux, &frame);
     return blu2usb_renderer_render(display, &frame);
 }
 
@@ -83,7 +84,15 @@ static void service_usb_keyboard(blu2usb_hid_aggregator_t *aggregator,
     *last_valid = true;
 }
 
-static void apply_profile(blu2usb_profiles_t *profiles,
+static bool same_profile_config(const blu2usb_mouse_profile_config_t *left,
+                                const blu2usb_mouse_profile_config_t *right)
+{
+    return left != NULL && right != NULL &&
+           left->kind == right->kind &&
+           memcmp(left->targets, right->targets, sizeof(left->targets)) == 0;
+}
+
+static bool apply_profile(blu2usb_profiles_t *profiles,
                           blu2usb_remap_t *remap,
                           blu2usb_hid_aggregator_t *aggregator,
                           const blu2usb_mouse_profile_config_t *config,
@@ -97,13 +106,24 @@ static void apply_profile(blu2usb_profiles_t *profiles,
     (void)blu2usb_hid_aggregator_release_source(aggregator, mouse);
     (void)blu2usb_hid_aggregator_release_source(aggregator, synthetic);
     blu2usb_profiles_activate(profiles, config);
+
     blu2usb_mouse_profile_config_t active;
     blu2usb_profiles_configure_active(profiles, &active);
+    if (!same_profile_config(&active, config)) return false;
+
     blu2usb_remap_set_profile(remap, &active);
     blu2usb_logitech_hidpp_pico_set_forward_fix(
         blu2usb_profiles_requires_forward_held_fix(&active));
     *mouse_valid = false;
     *keyboard_valid = false;
+    return true;
+}
+
+static void confirm_applied_profile(blu2usb_ux_model_t *ux,
+                                    const blu2usb_profiles_t *profiles)
+{
+    if (ux == NULL || profiles == NULL) return;
+    blu2usb_ux_profile_applied(ux, profiles->active_kind);
 }
 
 static void handle_ux_command(blu2usb_ux_model_t *ux,
@@ -118,26 +138,34 @@ static void handle_ux_command(blu2usb_ux_model_t *ux,
     switch (command.kind) {
     case BLU2USB_UX_COMMAND_APPLY_PASSTHROUGH:
         if (blu2usb_profiles_build_preset(BLU2USB_MOUSE_PROFILE_PASSTHROUGH,
-                                          profiles, &candidate))
-            apply_profile(profiles, remap, aggregator, &candidate, mouse_valid, keyboard_valid);
+                                          profiles, &candidate) &&
+            apply_profile(profiles, remap, aggregator, &candidate,
+                          mouse_valid, keyboard_valid))
+            confirm_applied_profile(ux, profiles);
         break;
     case BLU2USB_UX_COMMAND_APPLY_DEFAULT:
         if (blu2usb_profiles_build_preset(BLU2USB_MOUSE_PROFILE_DEFAULT_REMAP,
-                                          profiles, &candidate))
-            apply_profile(profiles, remap, aggregator, &candidate, mouse_valid, keyboard_valid);
+                                          profiles, &candidate) &&
+            apply_profile(profiles, remap, aggregator, &candidate,
+                          mouse_valid, keyboard_valid))
+            confirm_applied_profile(ux, profiles);
         break;
     case BLU2USB_UX_COMMAND_APPLY_ESCAPE:
         if (blu2usb_profiles_build_preset(BLU2USB_MOUSE_PROFILE_ESCAPE_REMAP,
-                                          profiles, &candidate))
-            apply_profile(profiles, remap, aggregator, &candidate, mouse_valid, keyboard_valid);
+                                          profiles, &candidate) &&
+            apply_profile(profiles, remap, aggregator, &candidate,
+                          mouse_valid, keyboard_valid))
+            confirm_applied_profile(ux, profiles);
         break;
     case BLU2USB_UX_COMMAND_CUSTOM_SET_TARGET:
         if (blu2usb_profiles_draft_set(profiles, command.source, command.target))
             blu2usb_ux_set_custom_target(ux, command.source, command.target);
         break;
     case BLU2USB_UX_COMMAND_APPLY_CUSTOM:
-        if (blu2usb_profiles_custom_candidate(profiles, &candidate))
-            apply_profile(profiles, remap, aggregator, &candidate, mouse_valid, keyboard_valid);
+        if (blu2usb_profiles_custom_candidate(profiles, &candidate) &&
+            apply_profile(profiles, remap, aggregator, &candidate,
+                          mouse_valid, keyboard_valid))
+            confirm_applied_profile(ux, profiles);
         break;
     default:
         break;
