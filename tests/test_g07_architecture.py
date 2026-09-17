@@ -31,7 +31,6 @@ for text, label in ((classic, 'classic core'), (transport, 'keyboard transport c
         assert forbidden not in lower, f'{label} leaks transport/HAL token: {forbidden}'
 
 for token in (
-    'BLU2USB_HID_SOURCE_KEYBOARD',
     'blu2usb_classic_hid_emit_state_diff',
     'BLU2USB_CLASSIC_HID_MESSAGE_PAIR_CODE',
 ):
@@ -40,6 +39,7 @@ for token in (
 for token in (
     'Bluetooth keyboard 3.0',
     'BKB-3G',
+    'BLU2USB_HID_SOURCE_KEYBOARD',
     'gap_inquiry_start',
     'gap_remote_name_request',
     'hid_host_init',
