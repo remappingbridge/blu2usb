@@ -28,34 +28,16 @@ EXPECTED_DEPS = {
     "renderer": ["ux_model"],
     "hat": ["domain"],
     "app": [
-        "domain",
-        "hid_aggregator",
-        "profiles",
-        "remap",
-        "device_registry",
-        "connection_coordinator",
-        "bt_runtime",
-        "ble_hogp",
-        "classic_hid",
-        "keyboard_transport",
-        "logitech_hidpp",
-        "usb_hid",
-        "storage",
-        "interaction",
-        "ux_model",
-        "renderer",
-        "hat",
+        "domain", "hid_aggregator", "profiles", "remap", "device_registry",
+        "connection_coordinator", "bt_runtime", "ble_hogp", "classic_hid",
+        "keyboard_transport", "logitech_hidpp", "usb_hid", "storage",
+        "interaction", "ux_model", "renderer", "hat",
     ],
 }
 
 PURE_MODULES = {
-    "domain",
-    "hid_aggregator",
-    "profiles",
-    "remap",
-    "device_registry",
-    "interaction",
-    "ux_model",
+    "domain", "hid_aggregator", "profiles", "remap", "device_registry",
+    "interaction", "ux_model",
 }
 
 BTSTACK_ALLOWED = {"bt_runtime", "ble_hogp", "classic_hid", "logitech_hidpp"}
@@ -88,7 +70,7 @@ def parse_module_graph() -> None:
             fail(f"dependency mismatch for {module}: expected {expected}, got {actual}")
 
     if "add_library(blu2usb_module_${module} INTERFACE)" not in text:
-        fail("contract modules must remain INTERFACE scaffolds in G01")
+        fail("architecture facade modules must remain INTERFACE targets")
 
 
 def source_files() -> list[Path]:
@@ -105,6 +87,8 @@ def source_files() -> list[Path]:
 
 def module_for(path: Path) -> str | None:
     rel = path.relative_to(ROOT)
+    if rel == Path("include/tusb_config.h"):
+        return "usb_hid"
     if len(rel.parts) >= 2 and rel.parts[0] == "src":
         return rel.parts[1]
     if len(rel.parts) >= 3 and rel.parts[0] == "include" and rel.parts[1] == "blu2usb":
@@ -119,6 +103,7 @@ def check_source_boundaries() -> None:
     btstack_token = re.compile(r'(?:btstack|cyw43)', re.I)
     tinyusb_token = re.compile(r'(?:tusb\.h|tinyusb|\btud_)', re.I)
     raw_app_token = re.compile(r'(?:btstack|cyw43|tusb\.h|\btud_|hardware/gpio|hardware/spi)', re.I)
+    reenumeration_token = re.compile(r'\btud_(?:disconnect|connect)\s*\(', re.I)
 
     for path in source_files():
         text = path.read_text(encoding="utf-8")
@@ -142,6 +127,30 @@ def check_source_boundaries() -> None:
         if module == "app" and raw_app_token.search(text):
             fail(f"app contains raw transport/HAL primitive: {rel}")
 
+        if reenumeration_token.search(text):
+            fail(f"USB re-enumeration path is prohibited in G04: {rel}")
+
+
+def check_g04_usb_contract() -> None:
+    cmake = (ROOT / "CMakeLists.txt").read_text(encoding="utf-8")
+    required = (
+        "add_library(blu2usb_usb_hid STATIC src/usb_hid/usb_hid.c)",
+        "src/usb_hid/usb_hid_pico.c",
+        "src/usb_hid/usb_descriptors.c",
+        "tinyusb_device",
+        "target_link_libraries(blu2usb_module_usb_hid INTERFACE blu2usb_usb_hid)",
+    )
+    for token in required:
+        if token not in cmake:
+            fail(f"G04 USB integration missing: {token}")
+
+    config = (ROOT / "include" / "tusb_config.h").read_text(encoding="utf-8")
+    if "#define CFG_TUD_HID 2" not in config:
+        fail("TinyUSB must expose exactly two HID interfaces")
+    for disabled in ("CFG_TUD_CDC 0", "CFG_TUD_MSC 0", "CFG_TUD_MIDI 0", "CFG_TUD_VENDOR 0"):
+        if disabled not in config:
+            fail(f"unexpected USB function enabled or unspecified: {disabled}")
+
 
 def check_production_debug_prohibition() -> None:
     paths = [ROOT / "CMakeLists.txt"]
@@ -151,7 +160,7 @@ def check_production_debug_prohibition() -> None:
     combined = "\n".join(path.read_text(encoding="utf-8") for path in paths if path.exists())
 
     prohibited = {
-        "TinyUSB CDC": r"CFG_TUD_CDC|\btud_cdc_",
+        "TinyUSB CDC runtime": r"\btud_cdc_",
         "debug build option": r"BLU2USB_(?:BUILD_)?DEBUG",
         "debug CDC token": r"debug[-_ ]?cdc",
         "debug UF2 token": r"debug[^\n]*\.uf2",
@@ -200,9 +209,10 @@ def check_toolchain_lock() -> None:
 def main() -> int:
     parse_module_graph()
     check_source_boundaries()
+    check_g04_usb_contract()
     check_production_debug_prohibition()
     check_toolchain_lock()
-    print("BLU2USB-G01 architecture contract: OK")
+    print("BLU2USB-G04 architecture contract: OK")
     return 0
 
 
