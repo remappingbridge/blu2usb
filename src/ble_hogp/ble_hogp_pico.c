@@ -1,0 +1,321 @@
+#include "blu2usb/ble_hogp/ble_hogp.h"
+
+#include <string.h>
+
+#include "btstack.h"
+
+#define BLE_HOGP_DESCRIPTOR_STORAGE_SIZE 2048u
+#define BLE_HOGP_REJECTED_DEVICE_CAPACITY 4u
+#define BLE_APPEARANCE_HID_GENERIC 960u
+#define BLE_APPEARANCE_HID_MOUSE 962u
+#define BLE_APPEARANCE_HID_LAST 1023u
+
+_Static_assert(sizeof(blu2usb_canonical_mouse_event_t) <= BLU2USB_BT_RUNTIME_MESSAGE_PAYLOAD_SIZE,
+               "canonical mouse event must fit runtime message");
+
+typedef enum {
+    BLE_HOGP_STATE_WAITING_FOR_STACK = 0,
+    BLE_HOGP_STATE_SCANNING,
+    BLE_HOGP_STATE_CONNECTING,
+    BLE_HOGP_STATE_SECURING,
+    BLE_HOGP_STATE_CONNECTING_HIDS,
+    BLE_HOGP_STATE_READY,
+    BLE_HOGP_STATE_DISCONNECTING,
+} ble_hogp_state_t;
+
+typedef struct {
+    bool used;
+    bd_addr_type_t address_type;
+    bd_addr_t address;
+} ble_hogp_rejected_device_t;
+
+static ble_hogp_state_t g_state;
+static bd_addr_t g_remote_address;
+static bd_addr_type_t g_remote_address_type;
+static hci_con_handle_t g_connection_handle = HCI_CON_HANDLE_INVALID;
+static uint16_t g_hids_cid;
+static uint8_t g_descriptor_storage[BLE_HOGP_DESCRIPTOR_STORAGE_SIZE];
+static blu2usb_ble_hogp_parser_t g_parser;
+static ble_hogp_rejected_device_t g_rejected_devices[BLE_HOGP_REJECTED_DEVICE_CAPACITY];
+static size_t g_rejected_next;
+static btstack_packet_callback_registration_t g_hci_registration;
+static btstack_packet_callback_registration_t g_sm_registration;
+
+static void handle_gatt_client_event(uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size);
+
+static bool publish_status(blu2usb_ble_hogp_message_type_t type)
+{
+    return blu2usb_bt_runtime_publish(BLU2USB_BLE_HOGP_RUNTIME_CHANNEL, (uint16_t)type, NULL, 0u);
+}
+
+static bool publish_mouse_event(void *context, const blu2usb_canonical_mouse_event_t *event)
+{
+    (void)context;
+    return event != NULL && blu2usb_bt_runtime_publish(
+        BLU2USB_BLE_HOGP_RUNTIME_CHANNEL,
+        BLU2USB_BLE_HOGP_MESSAGE_MOUSE,
+        event,
+        (uint16_t)sizeof(*event));
+}
+
+static bool advertisement_has_hid_service(const uint8_t *packet)
+{
+    const uint8_t *data = gap_event_advertising_report_get_data(packet);
+    const uint8_t length = gap_event_advertising_report_get_data_length(packet);
+    return ad_data_contains_uuid16(length, data, ORG_BLUETOOTH_SERVICE_HUMAN_INTERFACE_DEVICE);
+}
+
+static uint16_t advertisement_appearance(const uint8_t *packet)
+{
+    const uint8_t *data = gap_event_advertising_report_get_data(packet);
+    const uint8_t length = gap_event_advertising_report_get_data_length(packet);
+    ad_context_t context;
+    for (ad_iterator_init(&context, length, (uint8_t *)data);
+         ad_iterator_has_more(&context);
+         ad_iterator_next(&context)) {
+        if (ad_iterator_get_data_type(&context) == BLUETOOTH_DATA_TYPE_APPEARANCE &&
+            ad_iterator_get_data_len(&context) >= 2u) {
+            return little_endian_read_16(ad_iterator_get_data(&context), 0u);
+        }
+    }
+    return 0u;
+}
+
+static bool appearance_is_explicit_non_mouse_hid(uint16_t appearance)
+{
+    return appearance >= BLE_APPEARANCE_HID_GENERIC && appearance <= BLE_APPEARANCE_HID_LAST &&
+           appearance != BLE_APPEARANCE_HID_GENERIC && appearance != BLE_APPEARANCE_HID_MOUSE;
+}
+
+static bool address_is_rejected(const bd_addr_t address, bd_addr_type_t address_type)
+{
+    for (size_t index = 0u; index < BLE_HOGP_REJECTED_DEVICE_CAPACITY; ++index) {
+        if (g_rejected_devices[index].used &&
+            g_rejected_devices[index].address_type == address_type &&
+            memcmp(g_rejected_devices[index].address, address, sizeof(bd_addr_t)) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static void reject_address(const bd_addr_t address, bd_addr_type_t address_type)
+{
+    if (address_is_rejected(address, address_type)) return;
+    ble_hogp_rejected_device_t *slot = &g_rejected_devices[g_rejected_next];
+    slot->used = true;
+    slot->address_type = address_type;
+    memcpy(slot->address, address, sizeof(bd_addr_t));
+    g_rejected_next = (g_rejected_next + 1u) % BLE_HOGP_REJECTED_DEVICE_CAPACITY;
+}
+
+static void start_scan(void)
+{
+    g_state = BLE_HOGP_STATE_SCANNING;
+    gap_set_scan_parameters(0u, 48u, 48u);
+    gap_start_scan();
+}
+
+static void disconnect_and_rescan(void)
+{
+    const bool was_ready = g_state == BLE_HOGP_STATE_READY;
+    g_state = BLE_HOGP_STATE_DISCONNECTING;
+    if (was_ready) (void)publish_status(BLU2USB_BLE_HOGP_MESSAGE_DISCONNECTED);
+    if (g_connection_handle != HCI_CON_HANDLE_INVALID) {
+        gap_disconnect(g_connection_handle);
+    } else {
+        start_scan();
+    }
+}
+
+static void connect_hid_service(void)
+{
+    g_state = BLE_HOGP_STATE_CONNECTING_HIDS;
+    g_hids_cid = 0u;
+    const uint8_t status = hids_client_connect(g_connection_handle,
+                                                &handle_gatt_client_event,
+                                                HID_PROTOCOL_MODE_REPORT,
+                                                &g_hids_cid);
+    if (status != ERROR_CODE_SUCCESS) disconnect_and_rescan();
+}
+
+static void handle_gatt_client_event(uint8_t packet_type,
+                                     uint16_t channel,
+                                     uint8_t *packet,
+                                     uint16_t size)
+{
+    (void)packet_type;
+    (void)channel;
+    (void)size;
+    if (hci_event_packet_get_type(packet) != HCI_EVENT_GATTSERVICE_META) return;
+
+    switch (hci_event_gattservice_meta_get_subevent_code(packet)) {
+    case GATTSERVICE_SUBEVENT_HID_SERVICE_CONNECTED: {
+        const uint8_t status = gattservice_subevent_hid_service_connected_get_status(packet);
+        if (status != ERROR_CODE_SUCCESS) {
+            disconnect_and_rescan();
+            return;
+        }
+
+        const uint8_t *descriptor = hids_client_descriptor_storage_get_descriptor_data(g_hids_cid, 0u);
+        const uint16_t descriptor_len = hids_client_descriptor_storage_get_descriptor_len(g_hids_cid, 0u);
+        const blu2usb_hid_source_t source = blu2usb_hid_source_make(BLU2USB_HID_SOURCE_MOUSE, 1u);
+        const bool parser_ready = descriptor != NULL && descriptor_len > 0u &&
+            blu2usb_ble_hogp_parser_configure(&g_parser, source, descriptor, descriptor_len) &&
+            blu2usb_ble_hogp_parser_has_mouse(&g_parser);
+        if (!parser_ready) {
+            if (descriptor != NULL && descriptor_len > 0u) reject_address(g_remote_address, g_remote_address_type);
+            disconnect_and_rescan();
+            return;
+        }
+
+        g_state = BLE_HOGP_STATE_READY;
+        if (!publish_status(BLU2USB_BLE_HOGP_MESSAGE_CONNECTED)) disconnect_and_rescan();
+        break;
+    }
+
+    case GATTSERVICE_SUBEVENT_HID_SERVICE_DISCONNECTED:
+        if (g_state != BLE_HOGP_STATE_DISCONNECTING) disconnect_and_rescan();
+        break;
+
+    case GATTSERVICE_SUBEVENT_HID_REPORT: {
+        if (g_state != BLE_HOGP_STATE_READY) break;
+        const uint8_t report_id = gattservice_subevent_hid_report_get_report_id(packet);
+        const uint8_t *report = gattservice_subevent_hid_report_get_report(packet);
+        const uint16_t report_len = gattservice_subevent_hid_report_get_report_len(packet);
+        if (!blu2usb_ble_hogp_parser_parse_report(&g_parser,
+                                                   report_id,
+                                                   report,
+                                                   report_len,
+                                                   publish_mouse_event,
+                                                   NULL)) {
+            disconnect_and_rescan();
+        }
+        break;
+    }
+
+    default:
+        break;
+    }
+}
+
+static void hci_packet_handler(uint8_t packet_type,
+                               uint16_t channel,
+                               uint8_t *packet,
+                               uint16_t size)
+{
+    (void)channel;
+    (void)size;
+    if (packet_type != HCI_EVENT_PACKET) return;
+
+    switch (hci_event_packet_get_type(packet)) {
+    case BTSTACK_EVENT_STATE:
+        if (btstack_event_state_get_state(packet) == HCI_STATE_WORKING &&
+            g_state == BLE_HOGP_STATE_WAITING_FOR_STACK) {
+            start_scan();
+        }
+        break;
+
+    case GAP_EVENT_ADVERTISING_REPORT: {
+        if (g_state != BLE_HOGP_STATE_SCANNING || !advertisement_has_hid_service(packet)) break;
+
+        bd_addr_t candidate_address;
+        gap_event_advertising_report_get_address(packet, candidate_address);
+        const bd_addr_type_t candidate_type = gap_event_advertising_report_get_address_type(packet);
+        const uint16_t appearance = advertisement_appearance(packet);
+        if (address_is_rejected(candidate_address, candidate_type)) break;
+        if (appearance_is_explicit_non_mouse_hid(appearance)) {
+            reject_address(candidate_address, candidate_type);
+            break;
+        }
+
+        gap_stop_scan();
+        memcpy(g_remote_address, candidate_address, sizeof(bd_addr_t));
+        g_remote_address_type = candidate_type;
+        g_state = BLE_HOGP_STATE_CONNECTING;
+        gap_connect(g_remote_address, g_remote_address_type);
+        break;
+    }
+
+    case HCI_EVENT_META_GAP:
+        if (hci_event_gap_meta_get_subevent_code(packet) == GAP_SUBEVENT_LE_CONNECTION_COMPLETE &&
+            g_state == BLE_HOGP_STATE_CONNECTING) {
+            const uint8_t status = gap_subevent_le_connection_complete_get_status(packet);
+            if (status != ERROR_CODE_SUCCESS) {
+                g_connection_handle = HCI_CON_HANDLE_INVALID;
+                start_scan();
+                break;
+            }
+            g_connection_handle = gap_subevent_le_connection_complete_get_connection_handle(packet);
+            g_state = BLE_HOGP_STATE_SECURING;
+            sm_request_pairing(g_connection_handle);
+        }
+        break;
+
+    case HCI_EVENT_DISCONNECTION_COMPLETE: {
+        const bool was_ready = g_state == BLE_HOGP_STATE_READY;
+        g_connection_handle = HCI_CON_HANDLE_INVALID;
+        g_hids_cid = 0u;
+        memset(&g_parser, 0, sizeof(g_parser));
+        if (was_ready) (void)publish_status(BLU2USB_BLE_HOGP_MESSAGE_DISCONNECTED);
+        start_scan();
+        break;
+    }
+
+    default:
+        break;
+    }
+}
+
+static void sm_packet_handler(uint8_t packet_type,
+                              uint16_t channel,
+                              uint8_t *packet,
+                              uint16_t size)
+{
+    (void)channel;
+    (void)size;
+    if (packet_type != HCI_EVENT_PACKET) return;
+
+    bool security_ready = false;
+    switch (hci_event_packet_get_type(packet)) {
+    case SM_EVENT_JUST_WORKS_REQUEST:
+        sm_just_works_confirm(sm_event_just_works_request_get_handle(packet));
+        break;
+    case SM_EVENT_NUMERIC_COMPARISON_REQUEST:
+        sm_numeric_comparison_confirm(sm_event_passkey_display_number_get_handle(packet));
+        break;
+    case SM_EVENT_PAIRING_COMPLETE:
+        if (sm_event_pairing_complete_get_status(packet) == ERROR_CODE_SUCCESS) security_ready = true;
+        else disconnect_and_rescan();
+        break;
+    case SM_EVENT_REENCRYPTION_COMPLETE:
+        if (sm_event_reencryption_complete_get_status(packet) == ERROR_CODE_SUCCESS) security_ready = true;
+        else disconnect_and_rescan();
+        break;
+    default:
+        break;
+    }
+
+    if (security_ready && g_state == BLE_HOGP_STATE_SECURING) connect_hid_service();
+}
+
+static void ble_hogp_session_setup(void)
+{
+    memset(&g_parser, 0, sizeof(g_parser));
+    memset(g_rejected_devices, 0, sizeof(g_rejected_devices));
+    g_rejected_next = 0u;
+    g_state = BLE_HOGP_STATE_WAITING_FOR_STACK;
+    g_connection_handle = HCI_CON_HANDLE_INVALID;
+    g_hids_cid = 0u;
+
+    hids_client_init(g_descriptor_storage, sizeof(g_descriptor_storage));
+    g_hci_registration.callback = &hci_packet_handler;
+    hci_add_event_handler(&g_hci_registration);
+    g_sm_registration.callback = &sm_packet_handler;
+    sm_add_event_handler(&g_sm_registration);
+}
+
+bool blu2usb_ble_hogp_start(void)
+{
+    return blu2usb_bt_runtime_start(ble_hogp_session_setup);
+}

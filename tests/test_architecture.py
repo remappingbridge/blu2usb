@@ -89,6 +89,8 @@ def module_for(path: Path) -> str | None:
     rel = path.relative_to(ROOT)
     if rel == Path("include/tusb_config.h"):
         return "usb_hid"
+    if rel == Path("include/btstack_config.h"):
+        return "bt_runtime"
     if len(rel.parts) >= 2 and rel.parts[0] == "src":
         return rel.parts[1]
     if len(rel.parts) >= 3 and rel.parts[0] == "include" and rel.parts[1] == "blu2usb":
@@ -128,7 +130,7 @@ def check_source_boundaries() -> None:
             fail(f"app contains raw transport/HAL primitive: {rel}")
 
         if reenumeration_token.search(text):
-            fail(f"USB re-enumeration path is prohibited in G04: {rel}")
+            fail(f"USB re-enumeration path is prohibited: {rel}")
 
 
 def check_g04_usb_contract() -> None:
@@ -150,6 +152,118 @@ def check_g04_usb_contract() -> None:
     for disabled in ("CFG_TUD_CDC 0", "CFG_TUD_MSC 0", "CFG_TUD_MIDI 0", "CFG_TUD_VENDOR 0"):
         if disabled not in config:
             fail(f"unexpected USB function enabled or unspecified: {disabled}")
+
+
+def check_g05_canonical_hid_contract() -> None:
+    cmake = (ROOT / "CMakeLists.txt").read_text(encoding="utf-8")
+    for token in (
+        "add_library(blu2usb_hid_aggregator STATIC",
+        "src/hid_aggregator/hid_aggregator.c",
+        "src/hid_aggregator/relative.c",
+        "target_link_libraries(blu2usb_module_hid_aggregator INTERFACE blu2usb_hid_aggregator)",
+        'BLU2USB_VERSION_STRING="0.5.0-g05"',
+    ):
+        if token not in cmake:
+            fail(f"G05 canonical HID integration missing: {token}")
+
+    domain_hid = ROOT / "include" / "blu2usb" / "domain" / "hid.h"
+    aggregator_h = ROOT / "include" / "blu2usb" / "hid_aggregator" / "hid_aggregator.h"
+    aggregator_c = ROOT / "src" / "hid_aggregator" / "hid_aggregator.c"
+    relative_c = ROOT / "src" / "hid_aggregator" / "relative.c"
+    for path in (domain_hid, aggregator_h, aggregator_c, relative_c):
+        if not path.is_file():
+            fail(f"G05 canonical HID file missing: {path.relative_to(ROOT)}")
+
+    hid_text = domain_hid.read_text(encoding="utf-8")
+    for token in (
+        "BLU2USB_HID_SOURCE_MOUSE",
+        "BLU2USB_HID_SOURCE_KEYBOARD",
+        "BLU2USB_HID_SOURCE_COMPOSITE",
+        "BLU2USB_HID_SOURCE_SYNTHETIC_REMAP",
+    ):
+        if token not in hid_text:
+            fail(f"missing canonical HID source kind: {token}")
+
+    aggregator_text = (
+        aggregator_h.read_text(encoding="utf-8") + "\n" +
+        aggregator_c.read_text(encoding="utf-8") + "\n" +
+        relative_c.read_text(encoding="utf-8")
+    )
+    if "BLU2USB_HID_AGGREGATOR_MAX_SOURCES 16u" not in aggregator_text:
+        fail("G05 must support 16 persistent ownership sources")
+
+    canonical_lower = (hid_text + "\n" + aggregator_text).lower()
+    for token in (
+        "btstack", "cyw43", "tinyusb", "tusb.h", "tud_", "hid_host",
+        "hardware/gpio", "hardware/spi", "pico/stdlib", "report_id",
+        "descriptor_report", "remote_report",
+    ):
+        if token in canonical_lower:
+            fail(f"canonical HID boundary contains forbidden transport/layout token: {token}")
+
+
+def check_g05_ble_hogp_contract() -> None:
+    cmake = (ROOT / "CMakeLists.txt").read_text(encoding="utf-8")
+    required = (
+        "add_library(blu2usb_bt_runtime STATIC src/bt_runtime/bt_runtime.c)",
+        "add_library(blu2usb_ble_hogp STATIC src/ble_hogp/ble_hogp.c)",
+        "src/bt_runtime/bt_runtime_pico.c",
+        "src/ble_hogp/ble_hogp_pico.c",
+        "pico_btstack_ble",
+        "pico_btstack_cyw43",
+        "pico_cyw43_arch_threadsafe_background",
+        "PICO_BTSTACK_CYW43_MAX_HCI_PROCESS_LOOP_COUNT=8",
+        "pico_btstack_make_gatt_header",
+        "target_link_libraries(blu2usb_module_bt_runtime INTERFACE blu2usb_bt_runtime)",
+        "target_link_libraries(blu2usb_module_ble_hogp INTERFACE blu2usb_ble_hogp)",
+    )
+    for token in required:
+        if token not in cmake:
+            fail(f"G05 BLE HOGP integration missing: {token}")
+
+    combined = cmake + "\n" + "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in source_files()
+        if path.exists()
+    )
+    for prohibited in ("pico_multicore", "multicore_launch_core1", "tud_disconnect(", "tud_connect("):
+        if prohibited in combined:
+            fail(f"G05 runtime contains prohibited coupling/re-enumeration token: {prohibited}")
+
+    for path in (
+        ROOT / "include" / "blu2usb" / "bt_runtime" / "bt_runtime.h",
+        ROOT / "src" / "bt_runtime" / "bt_runtime.c",
+        ROOT / "src" / "bt_runtime" / "bt_runtime_pico.c",
+        ROOT / "include" / "blu2usb" / "ble_hogp" / "ble_hogp.h",
+        ROOT / "src" / "ble_hogp" / "ble_hogp.c",
+        ROOT / "src" / "ble_hogp" / "ble_hogp_pico.c",
+    ):
+        if not path.is_file():
+            fail(f"G05 BLE HOGP file missing: {path.relative_to(ROOT)}")
+
+    adapter = (ROOT / "src" / "ble_hogp" / "ble_hogp.c").read_text(encoding="utf-8")
+    pico = (ROOT / "src" / "ble_hogp" / "ble_hogp_pico.c").read_text(encoding="utf-8")
+    for token in (
+        "HID_USAGE_AC_PAN",
+        "blu2usb_ble_hogp_parser_normalize_report",
+        "BLU2USB_BLE_HOGP_FIELD_BUTTON",
+        "BLU2USB_BLE_HOGP_FIELD_X",
+        "BLU2USB_BLE_HOGP_FIELD_Y",
+        "BLU2USB_BLE_HOGP_FIELD_WHEEL",
+        "BLU2USB_BLE_HOGP_FIELD_PAN",
+    ):
+        if token not in adapter:
+            fail(f"G05 Report Map parser missing capability: {token}")
+    for token in (
+        "ad_data_contains_uuid16",
+        "appearance_is_explicit_non_mouse_hid",
+        "hids_client_connect",
+        "HID_PROTOCOL_MODE_REPORT",
+        "sm_request_pairing",
+        "disconnect_and_rescan",
+    ):
+        if token not in pico:
+            fail(f"G05 BLE runtime missing behavior: {token}")
 
 
 def check_production_debug_prohibition() -> None:
@@ -210,9 +324,11 @@ def main() -> int:
     parse_module_graph()
     check_source_boundaries()
     check_g04_usb_contract()
+    check_g05_canonical_hid_contract()
+    check_g05_ble_hogp_contract()
     check_production_debug_prohibition()
     check_toolchain_lock()
-    print("BLU2USB-G04 architecture contract: OK")
+    print("BLU2USB-G05 architecture contract: OK")
     return 0
 
 
