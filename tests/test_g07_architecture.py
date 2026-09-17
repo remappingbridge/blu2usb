@@ -72,8 +72,10 @@ for token in (
     'gap_stop_scan()',
     'gap_connect_cancel()',
     'enter_paused_discovery',
+    'hci_event_disconnection_complete_get_connection_handle',
+    'disconnected != g_connection_handle',
 ):
-    assert token in ble_pico, f'missing BLE discovery arbitration behavior: {token}'
+    assert token in ble_pico, f'missing BLE discovery/ownership arbitration behavior: {token}'
 
 for token in (
     '#define MAX_NR_HCI_CONNECTIONS 2',
@@ -86,7 +88,10 @@ for token in (
 
 # Classic depends on the BLE adapter only in the Pico composition layer so it
 # can arbitrate shared CYW43 discovery without leaking raw GAP calls into app.
-assert 'blu2usb_ble_hogp' in cmake.split('target_sources(blu2usb_classic_hid PRIVATE src/classic_hid/classic_hid_pico.c)', 1)[1]
+classic_pico_cmake = cmake.split(
+    'target_sources(blu2usb_classic_hid PRIVATE src/classic_hid/classic_hid_pico.c)', 1
+)[1].split('target_sources(blu2usb_keyboard_transport PRIVATE', 1)[0]
+assert 'blu2usb_ble_hogp' in classic_pico_cmake
 
 for forbidden in ('tud_disconnect(', 'tud_connect(', 'printf(', 'uart_', 'stdio_uart'):
     assert forbidden not in classic_pico.lower(), f'Classic adapter violates production policy: {forbidden}'
