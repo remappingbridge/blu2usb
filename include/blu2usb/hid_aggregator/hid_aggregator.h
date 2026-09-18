@@ -5,6 +5,7 @@
 #include <stdint.h>
 
 #include "blu2usb/domain/hid.h"
+#include "blu2usb/domain/keyboard.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -48,6 +49,8 @@ bool blu2usb_hid_aggregator_apply_mouse(blu2usb_hid_aggregator_t *aggregator, co
 bool blu2usb_hid_aggregator_apply_keyboard(blu2usb_hid_aggregator_t *aggregator, const blu2usb_canonical_keyboard_event_t *event);
 bool blu2usb_hid_aggregator_release_source(blu2usb_hid_aggregator_t *aggregator, blu2usb_hid_source_t source);
 void blu2usb_hid_aggregator_snapshot(const blu2usb_hid_aggregator_t *aggregator, blu2usb_hid_output_state_t *out_state);
+void blu2usb_hid_aggregator_apply_keyboard_snapshot(blu2usb_hid_aggregator_t *aggregator,
+                                                   const blu2usb_keyboard_snapshot_t *snapshot);
 
 /* Consume only relative deltas that were actually accepted by USB. Each
  * component must have the same sign as, and not exceed, its pending value. */

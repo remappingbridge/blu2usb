@@ -14,7 +14,7 @@ if(BLU2USB_BUILD_PICO)
     include("${PICO_SDK_PATH}/external/pico_sdk_import.cmake")
 endif()
 
-project(blu2usb_picow VERSION 0.6.0 LANGUAGES C CXX ASM)
+project(blu2usb_picow VERSION 0.7.0 LANGUAGES C CXX ASM)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -35,13 +35,14 @@ blu2usb_declare_contract_modules()
 
 add_library(blu2usb_contract STATIC src/domain/version.c)
 target_include_directories(blu2usb_contract PUBLIC include)
-target_compile_definitions(blu2usb_contract PUBLIC BLU2USB_VERSION_STRING="0.6.0-g06")
+target_compile_definitions(blu2usb_contract PUBLIC BLU2USB_VERSION_STRING="0.7.0-g07-validated")
 # Regression marker consumed by the inherited G05 architecture check only:
 # BLU2USB_VERSION_STRING="0.5.0-g05"
 
 add_library(blu2usb_hid_aggregator STATIC
     src/hid_aggregator/hid_aggregator.c
     src/hid_aggregator/relative.c
+    src/hid_aggregator/keyboard_snapshot.c
 )
 target_include_directories(blu2usb_hid_aggregator PUBLIC include)
 
@@ -64,6 +65,7 @@ target_include_directories(blu2usb_interaction PUBLIC include)
 add_library(blu2usb_ux_model STATIC
     src/ux_model/ux_model.c
     src/ux_model/profile_state.c
+    src/ux_model/keyboard_state.c
 )
 target_include_directories(blu2usb_ux_model PUBLIC include)
 target_link_libraries(blu2usb_ux_model PUBLIC blu2usb_interaction)
@@ -90,6 +92,9 @@ target_include_directories(blu2usb_ble_hogp PUBLIC include)
 add_library(blu2usb_logitech_hidpp STATIC src/logitech_hidpp/logitech_hidpp.c)
 target_include_directories(blu2usb_logitech_hidpp PUBLIC include)
 
+add_library(blu2usb_keyboard_transport STATIC src/keyboard_transport/keyboard_transport.c)
+target_include_directories(blu2usb_keyboard_transport PUBLIC include)
+
 if(BLU2USB_BUILD_PICO)
     target_sources(blu2usb_renderer PRIVATE src/renderer/st7789_pico.c)
     target_link_libraries(blu2usb_renderer PUBLIC pico_stdlib hardware_gpio hardware_spi)
@@ -110,12 +115,18 @@ if(BLU2USB_BUILD_PICO)
     target_link_libraries(blu2usb_bt_runtime PRIVATE
         pico_stdlib
         pico_btstack_ble
+        pico_btstack_classic
         pico_btstack_cyw43
         pico_cyw43_arch_threadsafe_background
+        pico_multicore
+        pico_flash
     )
     target_compile_definitions(blu2usb_bt_runtime PUBLIC
+        ENABLE_BLE=1
+        ENABLE_CLASSIC=1
         CYW43_LWIP=0
         PICO_BTSTACK_CYW43_MAX_HCI_PROCESS_LOOP_COUNT=8
+        PICO_CORE1_STACK_SIZE=0
     )
     pico_btstack_make_gatt_header(
         blu2usb_bt_runtime
@@ -128,6 +139,16 @@ if(BLU2USB_BUILD_PICO)
 
     target_sources(blu2usb_logitech_hidpp PRIVATE src/logitech_hidpp/logitech_hidpp_pico.c)
     target_link_libraries(blu2usb_logitech_hidpp PRIVATE blu2usb_ble_hogp)
+
+    add_library(blu2usb_classic_hid STATIC
+        src/classic_hid/classic_hid_pico.c
+        src/classic_hid/classic_hid_parser.c
+    )
+    target_include_directories(blu2usb_classic_hid PUBLIC include)
+    target_link_libraries(blu2usb_classic_hid PRIVATE pico_stdlib pico_btstack_classic blu2usb_bt_runtime)
+    target_sources(blu2usb_keyboard_transport PRIVATE src/keyboard_transport/keyboard_transport_pico.c)
+    target_link_libraries(blu2usb_keyboard_transport PRIVATE blu2usb_classic_hid)
+    target_link_libraries(blu2usb_module_classic_hid INTERFACE blu2usb_classic_hid)
 endif()
 
 # Attach implemented libraries to the frozen architecture facade targets.
@@ -143,6 +164,7 @@ target_link_libraries(blu2usb_module_usb_hid INTERFACE blu2usb_usb_hid)
 target_link_libraries(blu2usb_module_bt_runtime INTERFACE blu2usb_bt_runtime)
 target_link_libraries(blu2usb_module_ble_hogp INTERFACE blu2usb_ble_hogp)
 target_link_libraries(blu2usb_module_logitech_hidpp INTERFACE blu2usb_logitech_hidpp)
+target_link_libraries(blu2usb_module_keyboard_transport INTERFACE blu2usb_keyboard_transport)
 
 if(BLU2USB_BUILD_TESTS)
     enable_testing()
@@ -150,6 +172,7 @@ if(BLU2USB_BUILD_TESTS)
 
     add_executable(blu2usb_test_bootstrap tests/test_bootstrap.c)
     target_link_libraries(blu2usb_test_bootstrap PRIVATE blu2usb_contract)
+    target_compile_options(blu2usb_test_bootstrap PRIVATE -UNDEBUG)
     add_test(NAME bootstrap_contract COMMAND blu2usb_test_bootstrap)
 
     add_subdirectory(tests)
@@ -172,5 +195,10 @@ if(BLU2USB_BUILD_PICO)
 
     pico_enable_stdio_usb(blu2usb_picow 0)
     pico_enable_stdio_uart(blu2usb_picow 0)
+    execute_process(COMMAND git describe --always --dirty --abbrev=12
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        OUTPUT_VARIABLE BLU2USB_SOURCE_REVISION OUTPUT_STRIP_TRAILING_WHITESPACE)
+    pico_set_program_version(blu2usb_picow "0.7.0-g07-validated")
+    pico_set_program_description(blu2usb_picow "G07 validated Classic; source ${BLU2USB_SOURCE_REVISION}")
     pico_add_extra_outputs(blu2usb_picow)
 endif()

@@ -4,6 +4,15 @@ The gates below are the canonical implementation sequence for `blu2usb-picow`. E
 
 No gate may add diagnostic CDC/UART/debug firmware unless this contract is explicitly revised first.
 
+## Current execution numbering (2026-09-18)
+
+G06 at `7eee024` already includes the physically accepted Logitech Lift HID++
+work described below as original G07. Therefore the current **G07** implements
+the Keyboard facade/Classic HID criteria below under original G08. See
+`docs/decisions/0002-g07-validated-classic-rebuild.md` for the explicit scope and
+runtime amendment. Original numbers below are retained as historical references;
+the new G07 does not repeat the already accepted Logitech gate.
+
 ---
 
 ## BLU2USB-G00 — Contract Freeze

@@ -227,6 +227,9 @@ blu2usb_ux_command_t blu2usb_ux_input(blu2usb_ux_model_t *ux, blu2usb_control_t 
     }
 
     if (control == BLU2USB_CONTROL_KEY_B) {
+        if (ux->screen == BLU2USB_SCREEN_PAIR_KEYBOARD &&
+            ux->keyboard_status != BLU2USB_KEYBOARD_READY)
+            cmd.kind = BLU2USB_UX_COMMAND_CANCEL_KEYBOARD;
         if (ux->screen != BLU2USB_SCREEN_HOME) enter(ux, back_target(ux));
         return cmd;
     }
@@ -294,7 +297,11 @@ blu2usb_ux_command_t blu2usb_ux_input(blu2usb_ux_model_t *ux, blu2usb_control_t 
         unsigned selected = ux->selection;
         static const blu2usb_screen_id_t dest[3] = {BLU2USB_SCREEN_PAIR_KEYBOARD,BLU2USB_SCREEN_PAIR_COMPOSITE,BLU2USB_SCREEN_SAVED_DEVICES};
         enter(ux, dest[selected]);
-        if (selected == 0) cmd.kind = BLU2USB_UX_COMMAND_PAIR_KEYBOARD;
+        if (selected == 0) {
+            if (ux->keyboard_status == BLU2USB_KEYBOARD_READY)
+                enter(ux, BLU2USB_SCREEN_KEYBOARD_SAVED);
+            else cmd.kind = BLU2USB_UX_COMMAND_PAIR_KEYBOARD;
+        }
         else if (selected == 1) cmd.kind = BLU2USB_UX_COMMAND_PAIR_COMPOSITE;
         return cmd;
     }

@@ -90,6 +90,12 @@ Persistent product state includes at least:
 
 ## Runtime responsiveness
 
+G07 amendment: `docs/decisions/0002-g07-validated-classic-rebuild.md` supersedes
+the former blanket Core1 restriction with one shared BLE+Classic runtime on
+Core1, an explicit 8 KiB stack, queued commands/events and flash-safe registration
+on both cores. Core0 retains USB/HAT/LCD ownership. This is based on the newly
+physically accepted POC and does not accept earlier failed G07 candidates.
+
 USB servicing, HAT scanning, rendering and Bluetooth callbacks must not create an unbounded blocking path in the main product loop. Previous evidence showed the importance of non-blocking USB service and avoiding fragile CYW43/Core1 ownership patterns; the new implementation should preserve the proven stable approach rather than recreate experimental multicore coupling.
 
 ## Debug prohibition

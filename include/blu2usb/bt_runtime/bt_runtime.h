@@ -25,9 +25,12 @@ bool blu2usb_bt_runtime_publish(uint16_t channel, uint16_t type, const void *pay
 bool blu2usb_bt_runtime_poll(blu2usb_bt_runtime_message_t *message);
 bool blu2usb_bt_runtime_take_overflow(void);
 
-/* Pico implementation owns CYW43/BTstack on core 0 using the SDK
- * threadsafe-background async context; no application-owned BT run loop. */
+/* One BLE+Classic CYW43/BTstack owner on Core1. The caller remains on Core0. */
 bool blu2usb_bt_runtime_start(blu2usb_bt_runtime_session_setup_fn session_setup);
+/* Serialize product flash mutation with radio callbacks/credential writes. */
+bool blu2usb_bt_runtime_flash_lock(void);
+void blu2usb_bt_runtime_flash_unlock(void);
+bool blu2usb_bt_runtime_failed(void);
 
 #ifdef __cplusplus
 }

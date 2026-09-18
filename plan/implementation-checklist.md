@@ -1,5 +1,19 @@
 # Continuous implementation checklist
 
+## Current G07 rebuild (2026-09-18)
+
+- [x] G03–G06 physically accepted baseline: `7eee024`, PR #8 (includes Lift HID++).
+- [x] POC GT T1 pairing and a/s/d acceptance recorded at `857fd66` for implementation `b04aaf1`.
+- [x] Fresh G07 branch from accepted G06; earlier G07 attempts not reused as code base.
+- [x] Logical Keyboard facade, Classic Level 2 bonding and deferred HID launch implemented.
+- [x] Core1 radio/Core0 USB-HAT-LCD, flash safety, canonical ownership and BLE handle isolation.
+- [x] Accepted descriptor/reports, transition tests and synchronous-start negative control.
+- [ ] Integrated physical G07 scenarios in `docs/technical/06-g07-keyboard-solution.md` accepted.
+
+The original checklist below is historical numbering/status, superseded for
+G03–G07 by the accepted PRs and the current execution record above. Original G07
+Lift was absorbed into G06; current G07 is the original Keyboard gate.
+
 ```markdown
 - [x] G00 Contract Freeze: approve frozen product, UX, architecture and gate documentation
 - [x] G01 Create clean CMake/CI/test skeleton and enforce module boundaries

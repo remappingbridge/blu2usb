@@ -1,10 +1,11 @@
 #include "blu2usb/logitech_hidpp/logitech_hidpp.h"
 
 #include <string.h>
+#include <stdatomic.h>
 #include "blu2usb/ble_hogp/ble_hogp.h"
 
 static blu2usb_logitech_hidpp_t g_hidpp;
-static volatile bool g_forward_desired;
+static atomic_bool g_forward_desired;
 static blu2usb_hidpp_output_kind_t g_last_output_kind;
 static bool g_transport_failed;
 

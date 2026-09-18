@@ -1,0 +1,41 @@
+{
+  "g06_base": "7eee024ad4ee726c5a85ffa2f32b9f47187878af",
+  "poc_repository": "tiagooliveirajs/picow_ble_usb_hid_bridge_gui",
+  "poc_implementation_commit": "b04aaf146844cead484e2a4191a4b07806bdf6f6",
+  "poc_acceptance_record_commit": "857fd66e64d7ca4c24586d962063c5d43e925eee",
+  "physical_acceptance_scope": "GT T1 40062 pairing, HID setup and a/s/d press/releases; operator report 2026-09-18",
+  "poc_source_files": [
+    {
+      "path": "src_fw/poc_bkb3g_classic_hid_cdc/classic_hid.c",
+      "sha256": "c852c989e86f545cc475005c51efc26099a25197892a260c7da57f03916f0ce1"
+    },
+    {
+      "path": "src_fw/poc_bkb3g_classic_hid_cdc/main.c",
+      "sha256": "dc848d1aceeb9b6649316749613e788fc2a4244dd7cdb8d8ac9bb5f9ea8a4029"
+    },
+    {
+      "path": "src_fw/poc_bkb3g_classic_hid_cdc/btstack_config.h",
+      "sha256": "f62e6255150216b5b0f1f14f3b53f74071ff7398ce115f13280701b8bb31ca98"
+    },
+    {
+      "path": "src_fw/poc_bkb3g_classic_hid_cdc/CMakeLists.txt",
+      "sha256": "45e23c81b3bcff70540f76c3243ef3e62e38f6641231c42cb0466a86686400c8"
+    }
+  ],
+  "pico_sdk": "2.2.0",
+  "btstack_commit": "501e6d2b86e6c92bfb9c390bcf55709938e25ac1",
+  "descriptor_bytes": 263,
+  "descriptor_sha256": "7626b8c021d9ee5f2f1ae472f58c53037f2772820602cfb9d913319d37823d79",
+  "migration": "Reexpression of accepted sequence in production adapter; not a byte-for-byte transplant",
+  "invariants": [
+    "Classic HID not BLE HOGP keyboard",
+    "gap_dedicated_bonding(target,0)",
+    "SSP NoInputNoOutput, MITM not required",
+    "HID/SDP starts only in queued callback after bonding event returns",
+    "one radio runtime on Core1 with 8192-byte stack",
+    "Core0 USB/HAT/LCD, both cores flash-safe",
+    "source-scoped canonical keyboard ownership",
+    "fixed production USB Mouse+Keyboard, no diagnostic CDC"
+  ],
+  "physical_g07_acceptance": "pending integrated hardware test"
+}

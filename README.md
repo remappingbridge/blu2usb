@@ -4,6 +4,13 @@ Firmware plug-and-play para Raspberry Pi Pico 2 W que recebe dispositivos HID Bl
 
 ## Estado do projeto
 
+**G07 reconstruído a partir do G06 aceito:** branch
+`gate/g07-validated-classic-from-g06`. A solução GT T1/BKB-3G foi validada
+fisicamente na POC; a validação física da integração G07 continua pendente.
+Leia primeiro o [registro definitivo da solução, origem e teste](docs/technical/06-g07-keyboard-solution.md)
+e o [manifesto de proveniência](docs/reference/g07-keyboard-provenance.json).
+Nunca restaure a abertura HID síncrona dentro do evento de bonding.
+
 Este repositório é uma reconstrução limpa e madura do trabalho experimental anterior. O código antigo não é base estrutural: somente evidências físicas, decisões já aceitas e soluções comprovadas podem ser reexpressas sob os contratos deste repositório.
 
 A implementação começa somente depois do **BLU2USB-G00 — Contract Freeze**.

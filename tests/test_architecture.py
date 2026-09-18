@@ -226,9 +226,19 @@ def check_g05_ble_hogp_contract() -> None:
         for path in source_files()
         if path.exists()
     )
-    for prohibited in ("pico_multicore", "multicore_launch_core1", "tud_disconnect(", "tud_connect("):
+    # G07 decision 0002 replaces the blanket Core1 ban with explicit ownership.
+    for prohibited in ("tud_disconnect(", "tud_connect("):
         if prohibited in combined:
             fail(f"G05 runtime contains prohibited coupling/re-enumeration token: {prohibited}")
+
+    runtime = (ROOT / "src/bt_runtime/bt_runtime_pico.c").read_text()
+    for required in ("multicore_launch_core1_with_stack", "8192u", "btstack_run_loop_execute()",
+                     "flash_safe_execute_core_init", "async_context_acquire_lock_blocking"):
+        if required not in runtime:
+            fail(f"G07 radio/flash ownership missing: {required}")
+    for path in source_files():
+        if "multicore_launch_core1" in path.read_text() and module_for(path) != "bt_runtime":
+            fail(f"Core1 lifecycle leaked outside bt_runtime: {path}")
 
     for path in (
         ROOT / "include" / "blu2usb" / "bt_runtime" / "bt_runtime.h",
