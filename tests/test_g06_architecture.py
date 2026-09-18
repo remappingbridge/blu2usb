@@ -6,7 +6,7 @@ root = Path(sys.argv[1] if len(sys.argv) > 1 else '.').resolve()
 cmake = (root / 'CMakeLists.txt').read_text(encoding='utf-8')
 
 required_cmake = (
-    'BLU2USB_VERSION_STRING="0.6.0-g06"',
+    'BLU2USB_VERSION_STRING="0.7.0-g07-validated"',
     'src/profiles/profiles.c',
     'add_library(blu2usb_remap STATIC src/remap/remap.c)',
     'add_library(blu2usb_storage STATIC src/storage/storage.c)',

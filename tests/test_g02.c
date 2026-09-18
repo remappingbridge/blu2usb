@@ -54,12 +54,12 @@ static void test_learn_title_positions_press_and_unlock(void) {
     press_release(&ux, BLU2USB_CONTROL_JOY_PRESS);
     assert(ux.screen == BLU2USB_SCREEN_LEARN_KEYS);
     const blu2usb_screen_template_t *t = blu2usb_ux_screen_template(BLU2USB_SCREEN_LEARN_KEYS);
-    assert(strcmp(t->rows[0], "PRESS TO LEAR A KEY") == 0);
+    assert(strcmp(t->rows[0], "PRESS TO LEARN A KEY") == 0);
     assert(t->rows[1][6] == 'J');
     assert(t->rows[2][0] == 'J' && t->rows[2][7] == 'J' && t->rows[2][14] == 'J');
     assert(t->rows[3][0] == 'L' && t->rows[3][6] == 'P' && t->rows[3][13] == 'R');
     assert(t->rows[4][5] == 'J');
-    assert(t->rows[5][14] == 'K' && t->rows[6][14] == 'K' && t->rows[7][14] == 'K');
+    assert(t->rows[5][15] == 'K' && t->rows[6][15] == 'K' && t->rows[7][15] == 'K');
     assert(t->rows[6][0] == 'L');
     assert(t->rows[7][1] == 'A');
     assert(t->rows[8][2] == 'O');

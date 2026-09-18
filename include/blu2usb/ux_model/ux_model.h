@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include "blu2usb/domain/control.h"
 #include "blu2usb/domain/profile.h"
+#include "blu2usb/domain/keyboard.h"
 #include "blu2usb/interaction/interaction.h"
 
 typedef enum {
@@ -52,6 +53,7 @@ typedef enum {
     BLU2USB_UX_COMMAND_NONE = 0,
     BLU2USB_UX_COMMAND_PAIR_MOUSE,
     BLU2USB_UX_COMMAND_PAIR_KEYBOARD,
+    BLU2USB_UX_COMMAND_CANCEL_KEYBOARD,
     BLU2USB_UX_COMMAND_PAIR_COMPOSITE,
     BLU2USB_UX_COMMAND_RETRY,
     BLU2USB_UX_COMMAND_APPLY_PASSTHROUGH,
@@ -82,6 +84,7 @@ typedef struct {
     unsigned saved_page;
     unsigned saved_pages;
     unsigned saved_device_count;
+    blu2usb_keyboard_status_t keyboard_status;
     blu2usb_mouse_profile_kind_t active_profile;
     bool custom_dirty;
     blu2usb_mouse_source_t custom_source;
@@ -99,6 +102,7 @@ void blu2usb_ux_restore_profile_state(
     const blu2usb_mouse_target_t custom_targets[BLU2USB_MOUSE_SOURCE_COUNT]);
 void blu2usb_ux_set_mouse_connected(bool connected);
 bool blu2usb_ux_mouse_connected(void);
+void blu2usb_ux_keyboard_status(blu2usb_ux_model_t *ux, blu2usb_keyboard_status_t status);
 const blu2usb_screen_template_t *blu2usb_ux_screen_template(blu2usb_screen_id_t screen);
 unsigned blu2usb_ux_option_count(const blu2usb_ux_model_t *ux);
 uint16_t blu2usb_ux_learn_white_span_mask(const blu2usb_ux_model_t *ux);

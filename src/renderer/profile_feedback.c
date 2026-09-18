@@ -118,10 +118,51 @@ static void project_mouse_status(const blu2usb_ux_model_t *ux,
     (void)blu2usb_ui_frame_set_text(frame, 2u, 0u, profile, BLU2USB_UI_TONE_STATIC);
 }
 
+static void keyboard_row(blu2usb_ui_frame_t *frame, unsigned row,
+                         const char *text, blu2usb_ui_tone_t tone)
+{
+    clear_row(frame, (uint8_t)row);
+    (void)blu2usb_ui_frame_set_text(frame, (uint8_t)row, 0u, text, tone);
+}
+
+static void project_keyboard(const blu2usb_ux_model_t *ux, blu2usb_ui_frame_t *frame)
+{
+    const bool ready = ux->keyboard_status == BLU2USB_KEYBOARD_READY;
+    if (ux->screen == BLU2USB_SCREEN_OTHER_DEVICES_STATUS) {
+        keyboard_row(frame, 2, ready ? "CONNECTED" : "NOT CONNECTED",
+                     ready ? BLU2USB_UI_TONE_CURRENT : BLU2USB_UI_TONE_STATIC);
+    } else if (ux->screen == BLU2USB_SCREEN_OTHER_OPTIONS && ready) {
+        set_row_current_preserving_selection(frame, 1u);
+    } else if (ux->screen == BLU2USB_SCREEN_KEYBOARD_SAVED) {
+        keyboard_row(frame, 1, "TYPE KEYBOARD", BLU2USB_UI_TONE_CURRENT);
+        keyboard_row(frame, 2, "KEYBOARD CONNECTED", BLU2USB_UI_TONE_CURRENT);
+        keyboard_row(frame, 3, "READY TO USE", BLU2USB_UI_TONE_CURRENT);
+    } else if (ux->screen == BLU2USB_SCREEN_PAIR_KEYBOARD) {
+        const char *phase = "SEARCHING KEYBOARD";
+        switch (ux->keyboard_status) {
+        case BLU2USB_KEYBOARD_WAITING: phase = "WAITING FOR RADIO"; break;
+        case BLU2USB_KEYBOARD_READING_NAME: phase = "READING DEVICE NAME"; break;
+        case BLU2USB_KEYBOARD_PAIRING: phase = "PAIRING KEYBOARD"; break;
+        case BLU2USB_KEYBOARD_CONNECTING: phase = "CONNECTING KEYBOARD"; break;
+        case BLU2USB_KEYBOARD_READY: phase = "KEYBOARD CONNECTED"; break;
+        case BLU2USB_KEYBOARD_ERROR: phase = "CONNECTION FAILED"; break;
+        case BLU2USB_KEYBOARD_STOPPING: phase = "FINISHING REQUEST"; break;
+        default: break;
+        }
+        keyboard_row(frame, 1, phase, ready ? BLU2USB_UI_TONE_CURRENT : BLU2USB_UI_TONE_STATIC);
+        keyboard_row(frame, 2, "TARGET KEYBOARD", BLU2USB_UI_TONE_STATIC);
+        keyboard_row(frame, 3, ux->keyboard_status == BLU2USB_KEYBOARD_ERROR
+                     ? "KEY A TO TRY AGAIN" : "KEEP PAIRING ACTIVE", BLU2USB_UI_TONE_STATIC);
+        keyboard_row(frame, 4, "", BLU2USB_UI_TONE_STATIC);
+    }
+}
+
 void blu2usb_ui_enforce_applied_visual_contract(const blu2usb_ux_model_t *ux,
                                                  blu2usb_ui_frame_t *frame)
 {
     if (ux == NULL || frame == NULL) return;
+
+    project_keyboard(ux, frame);
 
     if (is_success_feedback(ux->screen)) {
         const uint8_t end = frame->hint_start_row < BLU2USB_RENDERER_TEXT_ROWS

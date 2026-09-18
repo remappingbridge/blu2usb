@@ -10,6 +10,7 @@
 #include "blu2usb/hat/hat.h"
 #include "blu2usb/hid_aggregator/hid_aggregator.h"
 #include "blu2usb/logitech_hidpp/logitech_hidpp.h"
+#include "blu2usb/keyboard_transport/keyboard_transport.h"
 #include "blu2usb/profiles/profiles.h"
 #include "blu2usb/remap/remap.h"
 #include "blu2usb/renderer/renderer.h"
@@ -62,11 +63,13 @@ static void build_keyboard_report(const blu2usb_hid_output_state_t *output,
 {
     uint8_t keys[BLU2USB_USB_HID_KEYCODE_COUNT] = {0};
     size_t out = 0u;
-    for (unsigned key = 0u;
-         key < BLU2USB_HID_KEY_COUNT && out < BLU2USB_USB_HID_KEYCODE_COUNT;
-         ++key) {
-        if ((output->key_bitmap[key >> 3u] & (uint8_t)(1u << (key & 7u))) != 0u)
-            keys[out++] = (uint8_t)key;
+    for (unsigned key = 1u; key < BLU2USB_HID_KEY_COUNT; ++key) {
+        if (!(output->key_bitmap[key >> 3u] & (uint8_t)(1u << (key & 7u)))) continue;
+        if (key <= 3u || out == BLU2USB_USB_HID_KEYCODE_COUNT) {
+            memset(keys, 1, sizeof(keys));
+            break;
+        }
+        keys[out++] = (uint8_t)key;
     }
     blu2usb_usb_hid_build_keyboard_report(report, output->modifiers, keys);
 }
@@ -96,8 +99,11 @@ static bool same_profile_config(const blu2usb_mouse_profile_config_t *left,
 static bool persist_profiles(const blu2usb_profiles_t *profiles)
 {
     uint8_t payload[BLU2USB_PROFILE_SERIALIZED_SIZE];
-    return blu2usb_profiles_serialize(profiles, payload) &&
-           blu2usb_storage_store(payload, sizeof(payload));
+    if (!blu2usb_profiles_serialize(profiles, payload) ||
+        !blu2usb_bt_runtime_flash_lock()) return false;
+    const bool stored = blu2usb_storage_store(payload, sizeof(payload));
+    blu2usb_bt_runtime_flash_unlock();
+    return stored;
 }
 
 static bool restore_profiles(blu2usb_profiles_t *profiles)
@@ -175,6 +181,17 @@ static void handle_ux_command(blu2usb_ux_model_t *ux,
 {
     blu2usb_mouse_profile_config_t candidate;
     switch (command.kind) {
+    case BLU2USB_UX_COMMAND_PAIR_KEYBOARD:
+        blu2usb_keyboard_transport_pair();
+        break;
+    case BLU2USB_UX_COMMAND_CANCEL_KEYBOARD:
+        blu2usb_keyboard_transport_cancel();
+        break;
+    case BLU2USB_UX_COMMAND_RETRY:
+        if (ux->screen == BLU2USB_SCREEN_PAIR_KEYBOARD &&
+            blu2usb_keyboard_transport_status() == BLU2USB_KEYBOARD_ERROR)
+            blu2usb_keyboard_transport_pair();
+        break;
     case BLU2USB_UX_COMMAND_APPLY_PASSTHROUGH:
         if (blu2usb_profiles_build_preset(BLU2USB_MOUSE_PROFILE_PASSTHROUGH,
                                           profiles, &candidate) &&
@@ -229,9 +246,19 @@ static bool service_ble_messages(blu2usb_ux_model_t *ux,
         blu2usb_hid_source_make(BLU2USB_HID_SOURCE_SYNTHETIC_REMAP, 1u);
     bool ui_changed = false;
 
+    // Preserve short press/release pairs until the previous keyboard state has
+    // actually been accepted by USB, even during a slow LCD redraw.
+    if (!*keyboard_valid) return false;
+
     for (unsigned count = 0u; count < BLU2USB_RUNTIME_MESSAGES_PER_TICK; ++count) {
         blu2usb_bt_runtime_message_t message;
         if (!blu2usb_bt_runtime_poll(&message)) break;
+        blu2usb_keyboard_snapshot_t keyboard;
+        if (blu2usb_keyboard_transport_decode(&message, &keyboard)) {
+            blu2usb_hid_aggregator_apply_keyboard_snapshot(aggregator, &keyboard);
+            *keyboard_valid = false;
+            break;
+        }
         blu2usb_ble_hogp_event_t event;
         if (!blu2usb_ble_hogp_decode_runtime_message(&message, &event)) continue;
         switch (event.type) {
@@ -261,19 +288,30 @@ static bool service_ble_messages(blu2usb_ux_model_t *ux,
             if (!blu2usb_remap_process_mouse(remap, &event.mouse, &mapped)) break;
             if (mapped.has_mouse)
                 (void)blu2usb_hid_aggregator_apply_mouse(aggregator, &mapped.mouse);
-            if (mapped.has_keyboard)
+            if (mapped.has_keyboard) {
                 (void)blu2usb_hid_aggregator_apply_keyboard(aggregator, &mapped.keyboard);
+                *keyboard_valid = false;
+            }
             break;
         }
         }
+        if (!*keyboard_valid) break;
     }
     if (blu2usb_bt_runtime_take_overflow()) {
         (void)blu2usb_hid_aggregator_release_source(aggregator, mouse);
         (void)blu2usb_hid_aggregator_release_source(aggregator, synthetic);
+        (void)blu2usb_hid_aggregator_release_source(aggregator,
+            blu2usb_hid_source_make(BLU2USB_HID_SOURCE_KEYBOARD, 1u));
         *mouse_valid = false;
         *keyboard_valid = false;
     }
     return ui_changed;
+}
+
+static void radio_session_setup(void)
+{
+    blu2usb_ble_hogp_session_setup();
+    blu2usb_keyboard_transport_setup();
 }
 
 int main(void)
@@ -313,13 +351,24 @@ int main(void)
     (void)blu2usb_logitech_hidpp_pico_start();
     blu2usb_logitech_hidpp_pico_set_forward_fix(
         blu2usb_profiles_requires_forward_held_fix(&boot_profile));
-    (void)blu2usb_ble_hogp_start();
+    (void)blu2usb_bt_runtime_start(radio_session_setup);
 
     for (;;) {
         blu2usb_usb_hid_pico_task();
-        const bool ble_ui_changed =
+        bool ble_ui_changed =
             service_ble_messages(&ux, &aggregator, &remap,
                                  &last_mouse_valid, &last_keyboard_valid);
+        const blu2usb_keyboard_status_t keyboard_status = blu2usb_keyboard_transport_status();
+        if (keyboard_status != ux.keyboard_status) {
+            // Status mailbox cannot be lost with a full input queue.
+            if (keyboard_status != BLU2USB_KEYBOARD_READY) {
+                (void)blu2usb_hid_aggregator_release_source(&aggregator,
+                    blu2usb_hid_source_make(BLU2USB_HID_SOURCE_KEYBOARD, 1u));
+                last_keyboard_valid = false;
+            }
+            blu2usb_ux_keyboard_status(&ux, keyboard_status);
+            ble_ui_changed = true;
+        }
         if (ble_ui_changed && !blu2usb_interaction_is_locked(&ux.interaction))
             (void)render_state(&display, &ux);
         service_usb_mouse(&aggregator, &last_mouse_buttons, &last_mouse_valid);
