@@ -68,3 +68,16 @@ add_test(
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_screen_contract.py
             ${PROJECT_SOURCE_DIR}
 )
+
+add_executable(blu2usb_test_v061_first_start test_v061_first_start.c)
+target_link_libraries(blu2usb_test_v061_first_start PRIVATE
+    blu2usb_renderer
+    blu2usb_ux_model
+)
+add_test(NAME v061_first_start_ux COMMAND blu2usb_test_v061_first_start)
+
+add_test(
+    NAME v061_architecture
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_v061_architecture.py
+            ${PROJECT_SOURCE_DIR}
+)
