@@ -20,12 +20,90 @@
 
 #define BLU2USB_RUNTIME_MESSAGES_PER_TICK 32u
 
+typedef enum {
+    MUX05_IDLE = 0,
+    MUX05_SEARCHING,
+    MUX05_QUALIFIED,
+    MUX05_COMMITTING,
+    MUX05_FAILED,
+} mux05_pair_new_state_t;
+
+static void clear_frame_row(blu2usb_ui_frame_t *frame, uint8_t row)
+{
+    if (frame == NULL || row >= BLU2USB_RENDERER_TEXT_ROWS) return;
+    for (uint8_t column = 0u; column < BLU2USB_RENDERER_TEXT_COLS; ++column) {
+        frame->cells[row][column].character = ' ';
+        frame->cells[row][column].tone = BLU2USB_UI_TONE_ACTIONABLE;
+    }
+}
+
+static void set_mux05_row(blu2usb_ui_frame_t *frame,
+                          uint8_t row,
+                          const char *text,
+                          blu2usb_ui_tone_t tone)
+{
+    clear_frame_row(frame, row);
+    (void)blu2usb_ui_frame_set_text(frame, row, 0u, text, tone);
+}
+
+static void project_mux05_harness(blu2usb_ui_frame_t *frame,
+                                  mux05_pair_new_state_t state)
+{
+    if (frame == NULL || state == MUX05_IDLE) return;
+
+    set_mux05_row(frame, 0u, "PAIR NEW RISK", BLU2USB_UI_TONE_TITLE);
+    set_mux05_row(frame, 1u, "CURRENT MOUSE ACTIVE", BLU2USB_UI_TONE_CURRENT);
+
+    switch (state) {
+    case MUX05_SEARCHING:
+        set_mux05_row(frame, 2u, "SEARCHING NEW MOUSE",
+                      BLU2USB_UI_TONE_STATIC);
+        break;
+    case MUX05_QUALIFIED:
+        set_mux05_row(frame, 2u, "NEW MOUSE QUALIFIED",
+                      BLU2USB_UI_TONE_CURRENT);
+        break;
+    case MUX05_COMMITTING:
+        set_mux05_row(frame, 2u, "HANDOFF IN PROGRESS",
+                      BLU2USB_UI_TONE_STATIC);
+        break;
+    case MUX05_FAILED:
+        set_mux05_row(frame, 2u, "CANDIDATE STOPPED",
+                      BLU2USB_UI_TONE_STATIC);
+        break;
+    default:
+        break;
+    }
+
+    set_mux05_row(frame, 3u, "", BLU2USB_UI_TONE_STATIC);
+    set_mux05_row(frame, 4u, "MOVE CURRENT MOUSE",
+                  BLU2USB_UI_TONE_STATIC);
+    set_mux05_row(frame, 5u, "", BLU2USB_UI_TONE_STATIC);
+
+    if (state == MUX05_QUALIFIED)
+        set_mux05_row(frame, 6u, "KEY A: COMMIT",
+                      BLU2USB_UI_TONE_ACTIONABLE);
+    else if (state == MUX05_FAILED)
+        set_mux05_row(frame, 6u, "KEY A: RETRY",
+                      BLU2USB_UI_TONE_ACTIONABLE);
+    else
+        set_mux05_row(frame, 6u, "", BLU2USB_UI_TONE_ACTIONABLE);
+
+    set_mux05_row(frame, 7u, "KEY B: CANCEL",
+                  BLU2USB_UI_TONE_ACTIONABLE);
+    set_mux05_row(frame, 8u, "USB MUST STAY LIVE",
+                  BLU2USB_UI_TONE_ACTIONABLE);
+}
+
 static bool render_state(const blu2usb_display_hal_t *display,
-                         const blu2usb_ux_model_t *ux)
+                         const blu2usb_ux_model_t *ux,
+                         mux05_pair_new_state_t mux05_state)
 {
     blu2usb_ui_frame_t frame;
     blu2usb_ui_project(ux, &frame);
     blu2usb_ui_enforce_applied_visual_contract(ux, &frame);
+    if (ux != NULL && ux->screen == BLU2USB_SCREEN_PAIR_MOUSE)
+        project_mux05_harness(&frame, mux05_state);
     return blu2usb_renderer_render(display, &frame);
 }
 
@@ -221,7 +299,9 @@ static bool service_ble_messages(blu2usb_ux_model_t *ux,
                                  blu2usb_hid_aggregator_t *aggregator,
                                  const blu2usb_remap_t *remap,
                                  bool *mouse_valid,
-                                 bool *keyboard_valid)
+                                 bool *keyboard_valid,
+                                 mux05_pair_new_state_t *mux05_state,
+                                 uint32_t *mux05_generation)
 {
     const blu2usb_hid_source_t mouse =
         blu2usb_hid_source_make(BLU2USB_HID_SOURCE_MOUSE, 1u);
@@ -265,6 +345,37 @@ static bool service_ble_messages(blu2usb_ux_model_t *ux,
                 (void)blu2usb_hid_aggregator_apply_keyboard(aggregator, &mapped.keyboard);
             break;
         }
+        case BLU2USB_BLE_HOGP_EVENT_PROVISIONAL_READY:
+            if (mux05_state != NULL && mux05_generation != NULL &&
+                *mux05_generation == event.generation &&
+                *mux05_state == MUX05_SEARCHING) {
+                *mux05_state = MUX05_QUALIFIED;
+                ui_changed = true;
+            }
+            break;
+        case BLU2USB_BLE_HOGP_EVENT_PROVISIONAL_CLEARED:
+        case BLU2USB_BLE_HOGP_EVENT_PROVISIONAL_TIMEOUT:
+            if (mux05_state != NULL && mux05_generation != NULL &&
+                *mux05_generation == event.generation &&
+                *mux05_state != MUX05_IDLE) {
+                *mux05_state = MUX05_FAILED;
+                ui_changed = true;
+            }
+            break;
+        case BLU2USB_BLE_HOGP_EVENT_PROMOTED:
+            if (mux05_state != NULL && mux05_generation != NULL &&
+                *mux05_generation == event.generation &&
+                *mux05_state == MUX05_COMMITTING) {
+                blu2usb_ux_set_mouse_connected(true);
+                if (ux != NULL) {
+                    ux->screen = BLU2USB_SCREEN_MOUSE_SAVED;
+                    ux->selection = 0u;
+                }
+                *mux05_state = MUX05_IDLE;
+                *mux05_generation = 0u;
+                ui_changed = true;
+            }
+            break;
         }
     }
     if (blu2usb_bt_runtime_take_overflow()) {
@@ -288,6 +399,8 @@ int main(void)
     bool last_mouse_valid = false;
     blu2usb_usb_keyboard_report_t last_keyboard = {0};
     bool last_keyboard_valid = false;
+    mux05_pair_new_state_t mux05_state = MUX05_IDLE;
+    uint32_t mux05_generation = 0u;
 
     blu2usb_ux_init(&ux);
     blu2usb_ux_set_mouse_connected(false);
@@ -307,7 +420,7 @@ int main(void)
     if (!blu2usb_st7789_pico_init(&display)) {
         for (;;) { blu2usb_usb_hid_pico_task(); tight_loop_contents(); }
     }
-    (void)render_state(&display, &ux);
+    (void)render_state(&display, &ux, mux05_state);
     blu2usb_st7789_pico_set_backlight(true);
 
     (void)blu2usb_logitech_hidpp_pico_start();
@@ -319,28 +432,120 @@ int main(void)
         blu2usb_usb_hid_pico_task();
         const bool ble_ui_changed =
             service_ble_messages(&ux, &aggregator, &remap,
-                                 &last_mouse_valid, &last_keyboard_valid);
+                                 &last_mouse_valid, &last_keyboard_valid,
+                                 &mux05_state, &mux05_generation);
         if (ble_ui_changed && !blu2usb_interaction_is_locked(&ux.interaction))
-            (void)render_state(&display, &ux);
+            (void)render_state(&display, &ux, mux05_state);
         service_usb_mouse(&aggregator, &last_mouse_buttons, &last_mouse_valid);
         service_usb_keyboard(&aggregator, &last_keyboard, &last_keyboard_valid);
 
         blu2usb_hat_pico_task();
         blu2usb_hat_event_t event;
         while (blu2usb_hat_pico_poll_event(&event)) {
-            const bool was_locked = blu2usb_interaction_is_locked(&ux.interaction);
+            const bool was_locked =
+                blu2usb_interaction_is_locked(&ux.interaction);
+            const blu2usb_screen_id_t previous_screen = ux.screen;
+            const unsigned previous_selection = ux.selection;
+
             const blu2usb_ux_command_t command =
                 blu2usb_ux_input(&ux, event.control, event.pressed);
-            handle_ux_command(&ux, command, &profiles, &remap, &aggregator,
-                              &last_mouse_valid, &last_keyboard_valid);
-            const bool is_locked = blu2usb_interaction_is_locked(&ux.interaction);
+
+            const bool release = !event.pressed;
+
+            /* MUX-05 physical harness: old G06 Pair Mouse is temporarily
+             * repurposed only on target firmware to exercise NEW while the
+             * current authoritative Mouse stays connected. */
+            if (release &&
+                previous_screen == BLU2USB_SCREEN_MOUSE_OPTIONS &&
+                previous_selection == 0u &&
+                event.control == BLU2USB_CONTROL_JOY_PRESS &&
+                blu2usb_ux_mouse_connected()) {
+                uint32_t generation = 0u;
+                ux.screen = BLU2USB_SCREEN_PAIR_MOUSE;
+                ux.selection = 0u;
+                if (blu2usb_ble_hogp_pair_new_start(&generation)) {
+                    mux05_generation = generation;
+                    mux05_state = MUX05_SEARCHING;
+                } else {
+                    mux05_generation = 0u;
+                    mux05_state = MUX05_FAILED;
+                }
+            } else if (release &&
+                       previous_screen == BLU2USB_SCREEN_PAIR_MOUSE &&
+                       event.control == BLU2USB_CONTROL_KEY_B &&
+                       mux05_state != MUX05_IDLE) {
+                if (mux05_generation != 0u &&
+                    mux05_state != MUX05_COMMITTING)
+                    (void)blu2usb_ble_hogp_pair_new_cancel(
+                        mux05_generation);
+                mux05_generation = 0u;
+                mux05_state = MUX05_IDLE;
+            } else if (release &&
+                       previous_screen == BLU2USB_SCREEN_PAIR_MOUSE &&
+                       event.control == BLU2USB_CONTROL_KEY_X &&
+                       mux05_state != MUX05_IDLE) {
+                if (mux05_generation != 0u &&
+                    mux05_state != MUX05_COMMITTING)
+                    (void)blu2usb_ble_hogp_pair_new_cancel(
+                        mux05_generation);
+                mux05_generation = 0u;
+                mux05_state = MUX05_IDLE;
+            } else if (release &&
+                       previous_screen == BLU2USB_SCREEN_PAIR_MOUSE &&
+                       event.control == BLU2USB_CONTROL_KEY_A &&
+                       mux05_state == MUX05_FAILED) {
+                uint32_t generation = 0u;
+                ux.screen = BLU2USB_SCREEN_PAIR_MOUSE;
+                ux.selection = 0u;
+                if (blu2usb_ble_hogp_pair_new_start(&generation)) {
+                    mux05_generation = generation;
+                    mux05_state = MUX05_SEARCHING;
+                }
+            } else if (release &&
+                       previous_screen == BLU2USB_SCREEN_PAIR_MOUSE &&
+                       event.control == BLU2USB_CONTROL_KEY_A &&
+                       mux05_state == MUX05_QUALIFIED &&
+                       mux05_generation != 0u) {
+                const blu2usb_hid_source_t mouse =
+                    blu2usb_hid_source_make(
+                        BLU2USB_HID_SOURCE_MOUSE, 1u);
+                const blu2usb_hid_source_t synthetic =
+                    blu2usb_hid_source_make(
+                        BLU2USB_HID_SOURCE_SYNTHETIC_REMAP, 1u);
+
+                /* Freeze/release old ownership before transport promotion. */
+                (void)blu2usb_hid_aggregator_release_source(
+                    &aggregator, mouse);
+                (void)blu2usb_hid_aggregator_release_source(
+                    &aggregator, synthetic);
+                last_mouse_valid = false;
+                last_keyboard_valid = false;
+
+                ux.screen = BLU2USB_SCREEN_PAIR_MOUSE;
+                ux.selection = 0u;
+                if (blu2usb_ble_hogp_pair_new_commit(
+                        mux05_generation)) {
+                    mux05_state = MUX05_COMMITTING;
+                } else {
+                    mux05_state = MUX05_FAILED;
+                }
+            }
+
+            handle_ux_command(
+                &ux, command, &profiles, &remap, &aggregator,
+                &last_mouse_valid, &last_keyboard_valid);
+
+            const bool is_locked =
+                blu2usb_interaction_is_locked(&ux.interaction);
             if (!was_locked && is_locked) {
                 blu2usb_st7789_pico_set_backlight(false);
             } else if (was_locked && !is_locked) {
-                (void)render_state(&display, &ux);
+                (void)render_state(
+                    &display, &ux, mux05_state);
                 blu2usb_st7789_pico_set_backlight(true);
             } else if (!is_locked) {
-                (void)render_state(&display, &ux);
+                (void)render_state(
+                    &display, &ux, mux05_state);
             }
         }
         tight_loop_contents();
