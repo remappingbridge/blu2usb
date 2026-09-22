@@ -8,7 +8,7 @@ The abandoned `experimental/g06-mouse-ux-v1` branch is out of scope.
 - [x] MUX-00 Freeze migration contract and exact mouse-ui v1.0 source commit
 - [x] MUX-00 Map all 30 screen IDs and visible terminology
 - [x] MUX-00 Confirm no mouse-ui/mouse-core/UI-Core implementation dependency
-- [ ] MUX-00 HUMAN ACCEPTANCE
+- [x] MUX-00 HUMAN ACCEPTANCE
 
 - [ ] MUX-01 Implement host-pure device_registry
 - [ ] MUX-01 Prove max 16 records, stable identity and connected-first presentation
