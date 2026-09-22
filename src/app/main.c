@@ -48,7 +48,10 @@ static void synchronize_search(blu2usb_ux_model_t *ux) {
     if(!blu2usb_interaction_is_locked(&ux->interaction)) {
         if(ux->screen==BLU2USB_SCREEN_SEARCHING_FIRST)desired=BLU2USB_SEARCH_FIRST;
         if(ux->screen==BLU2USB_SCREEN_HOME_SEARCHING)desired=BLU2USB_SEARCH_SAVED;
-        if(ux->screen==BLU2USB_SCREEN_PAIR_MOUSE && blu2usb_mice_count(&mice)<16)desired=BLU2USB_SEARCH_NEW;
+        if(ux->screen==BLU2USB_SCREEN_PAIR_MOUSE) {
+            if(blu2usb_mice_count(&mice)<16)desired=BLU2USB_SEARCH_NEW;
+            else blu2usb_ux_search_expired(ux);
+        }
     }
     if(desired!=running_search) {
         blu2usb_ble_hogp_search(desired,saved_mask());running_search=desired;

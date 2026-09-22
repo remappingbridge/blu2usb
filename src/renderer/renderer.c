@@ -118,7 +118,7 @@ static bool is_success_feedback(blu2usb_screen_id_t screen)
 
 static uint8_t active_profile_row(const blu2usb_ux_model_t *ux)
 {
-    if (ux->screen != BLU2USB_SCREEN_MOUSE_OPTIONS) return 0u;
+    if (ux->screen != BLU2USB_SCREEN_MOUSE_OPTIONS || !blu2usb_ux_mouse_connected()) return 0u;
     switch (ux->active_profile) {
     case BLU2USB_MOUSE_PROFILE_PASSTHROUGH: return 1u;
     case BLU2USB_MOUSE_PROFILE_DEFAULT_REMAP: return 2u;
@@ -171,7 +171,7 @@ void blu2usb_ui_project(const blu2usb_ux_model_t *ux, blu2usb_ui_frame_t *frame)
 
     for (uint8_t row = 0; row < BLU2USB_RENDERER_TEXT_ROWS; ++row) {
         const char *text = screen->rows[row] != NULL ? screen->rows[row] : "";
-        
+
         blu2usb_ui_tone_t tone;
         if (row == 0) tone = BLU2USB_UI_TONE_TITLE;
         else if (success_feedback && row < hint && text[0] != '\0') tone = BLU2USB_UI_TONE_CURRENT;

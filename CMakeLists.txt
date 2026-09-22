@@ -125,7 +125,7 @@ if(BLU2USB_BUILD_PICO)
     )
 
     target_sources(blu2usb_ble_hogp PRIVATE src/ble_hogp/ble_hogp_pico.c)
-    target_link_libraries(blu2usb_ble_hogp PRIVATE pico_stdlib pico_btstack_ble blu2usb_bt_runtime)
+    target_link_libraries(blu2usb_ble_hogp PRIVATE pico_stdlib pico_btstack_ble blu2usb_bt_runtime pico_cyw43_arch_threadsafe_background)
 
     target_sources(blu2usb_logitech_hidpp PRIVATE src/logitech_hidpp/logitech_hidpp_pico.c)
     target_link_libraries(blu2usb_logitech_hidpp PRIVATE blu2usb_ble_hogp)

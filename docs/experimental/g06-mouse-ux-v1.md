@@ -46,8 +46,11 @@ firmware downgrade does not understand the new product-record schema.
 
 ## Verification
 
-Host CTest: seven suites covering USB descriptors, canonical HID ownership, G06
-report decoding, profile/remap/HID++, storage CRC/recovery and the replacement UX.
+Host CTest: eight suites (including the production radio lifecycle with mocked
+HCI/SM/GATT completions against the pinned BTstack headers) covering USB descriptors, canonical HID ownership, G06
+report decoding, profile/remap/HID++, storage CRC/recovery and the replacement UX. The radio test verifies candidate qualification before
+promotion, preservation of the live mouse on cancellation, rejection of canceled
+completions, immunity to the old session disconnect, timeout, and bond removal.
 The old G02/G03/G06 UI golden tests describe the superseded G06 screens and remain
 in source for historical reference, but are replaced in this branch's test run.
 Old textual architecture/screen-contract tests are not treated as acceptance of

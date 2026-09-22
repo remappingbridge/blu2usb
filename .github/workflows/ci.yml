@@ -61,6 +61,14 @@ jobs:
           git -C "${RUNNER_TEMP}/pico-sdk" submodule update --init --depth 1
           test "$(git -C "${RUNNER_TEMP}/pico-sdk" describe --tags --exact-match)" = "${PICO_SDK_VERSION}"
 
+      - name: Test production radio lifecycle against pinned BTstack
+        shell: bash
+        run: |
+          cmake -S . -B build-radio -DBLU2USB_BUILD_TESTS=ON \
+            -DBLU2USB_BTSTACK_TEST_PATH="${RUNNER_TEMP}/pico-sdk/lib/btstack"
+          cmake --build build-radio --parallel
+          ctest --test-dir build-radio --output-on-failure
+
       - name: Configure Pico 2 W production firmware
         shell: bash
         run: |

@@ -39,3 +39,17 @@ add_test(NAME g06_product_persistence COMMAND blu2usb_test_g06_storage)
 add_executable(blu2usb_test_ux_v1 test_ux_v1.c)
 target_link_libraries(blu2usb_test_ux_v1 PRIVATE blu2usb_renderer blu2usb_profiles blu2usb_storage blu2usb_ble_hogp)
 add_test(NAME experimental_ux_v1 COMMAND blu2usb_test_ux_v1)
+
+set(BLU2USB_BTSTACK_TEST_PATH "" CACHE PATH "Pinned BTstack source for production radio lifecycle test")
+if(BLU2USB_BTSTACK_TEST_PATH)
+    add_executable(blu2usb_test_radio_lifecycle
+        test_radio_lifecycle.c
+        ../src/ble_hogp/ble_hogp_pico.c
+        ${BLU2USB_BTSTACK_TEST_PATH}/src/ad_parser.c
+        ${BLU2USB_BTSTACK_TEST_PATH}/src/btstack_util.c)
+    target_include_directories(blu2usb_test_radio_lifecycle PRIVATE
+        radio_stubs ${BLU2USB_BTSTACK_TEST_PATH}/src)
+    target_compile_definitions(blu2usb_test_radio_lifecycle PRIVATE ENABLE_BLE)
+    target_link_libraries(blu2usb_test_radio_lifecycle PRIVATE blu2usb_ble_hogp blu2usb_bt_runtime)
+    add_test(NAME production_radio_lifecycle COMMAND blu2usb_test_radio_lifecycle)
+endif()
