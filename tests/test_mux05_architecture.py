@@ -46,7 +46,7 @@ for token in (
 ):
     assert token in roles, token
 
-candidate_start=pico.index("static void handle_candidate_gatt_event")
+candidate_start=pico.rindex("static void handle_candidate_gatt_event")
 candidate_end=pico.index("static void hci_packet_handler", candidate_start)
 candidate=pico[candidate_start:candidate_end]
 assert "g_candidate_state != BLE_HOGP_CANDIDATE_PROMOTED" in candidate
