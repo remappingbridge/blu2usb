@@ -4,6 +4,51 @@ This file is the normative 9x21 screen and control-map contract. Unless a sectio
 
 All layouts use the retained pixel relocation in `00-interaction-visual-contract.md`.
 
+## v0.6.1 — SEARCHING FIRST MOUSE
+
+This is the physical firmware startup screen. It does not change the accepted G06 BLE search/reconnect implementation; it only replaces the pre-HOME presentation while that existing transport is looking for the first Mouse connection of the boot flow.
+
+All HAT controls are didactic only. In particular, Key B does not navigate and Key Y does not lock while no Mouse has reached the first-connected feedback screen.
+
+The entire screen background is black. `PRESS TO LEARN KEYS` and `WHILE WAIT CONNECTION` use the ordinary static yellow/off-white tone. A held HAT control turns only its own didactic label white.
+
+```text
+SEARCHING FIRST MOUSE
+PRESS TO LEARN KEYS
+WHILE WAIT CONNECTION
+       JOY UP
+  JOY    JOY    JOY
+  LEFT  PRESS  RIGHT
+      JOY DOWN
+ KEY A         KEY X
+ KEY B         KEY Y
+```
+
+If the Mouse connection disappears before first-start is completed, this screen is restored.
+
+## v0.6.1 — FIRST MOUSE CONNECTED
+
+The first accepted BLE Mouse connection of the startup flow opens this feedback screen.
+
+Joystick, Key A, Key B and Key X remain didactic; Key B is explicitly inert. Key Y is the only functional control and locks the display.
+
+The main body background is black. Only the final `KEY Y: LOCK` hint row uses the standard dark-magenta hint background.
+
+```text
+FIRST MOUSE CONNECTED
+       JOY UP
+  JOY    JOY    JOY
+  LEFT  PRESS  RIGHT
+      JOY DOWN
+ KEY A         KEY X
+ KEY B         KEY Y
+
+ KEY Y: LOCK
+```
+
+After Key Y locks, the first complete HAT interaction unlocks the display, is consumed, and opens the existing v0.6 HOME with selection zero. From that point onward the original v0.6 HOME/navigation behavior owns the session.
+
+
 ## HOME
 
 Hidden: Joy Up/Down Select; Key B Back (no-op because HOME is first); Key Y Lock.
