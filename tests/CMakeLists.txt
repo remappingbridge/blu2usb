@@ -81,3 +81,18 @@ add_test(
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_v061_architecture.py
             ${PROJECT_SOURCE_DIR}
 )
+
+add_executable(blu2usb_test_v062_home test_v062_home.c)
+target_link_libraries(blu2usb_test_v062_home PRIVATE
+    blu2usb_renderer
+    blu2usb_ux_model
+    blu2usb_ble_hogp
+    blu2usb_bt_runtime
+)
+add_test(NAME v062_three_state_home COMMAND blu2usb_test_v062_home)
+
+add_test(
+    NAME v062_architecture
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_v062_architecture.py
+            ${PROJECT_SOURCE_DIR}
+)
