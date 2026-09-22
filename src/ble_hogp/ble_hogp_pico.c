@@ -1,16 +1,18 @@
 #include "blu2usb/ble_hogp/ble_hogp.h"
+#include "blu2usb/ble_hogp/session_roles.h"
 
 #include <string.h>
 #include "btstack.h"
 #include "ble/le_device_db.h"
 
-#define BLE_HOGP_DESCRIPTOR_STORAGE_SIZE 2048u
+#define BLE_HOGP_DESCRIPTOR_STORAGE_SIZE 4096u
 #define BLE_HOGP_REJECTED_DEVICE_CAPACITY 4u
 #define BLE_APPEARANCE_HID_GENERIC 960u
 #define BLE_APPEARANCE_HID_MOUSE 962u
 #define BLE_APPEARANCE_HID_LAST 1023u
 #define BLE_HOGP_VENDOR_SERVICE_MS 20u
 #define BLE_HOGP_BONDED_RECONNECT_TIMEOUT_MS 8000u
+#define BLE_HOGP_PAIR_NEW_TIMEOUT_MS 15000u
 
 _Static_assert(sizeof(blu2usb_canonical_mouse_event_t) <= BLU2USB_BT_RUNTIME_MESSAGE_PAYLOAD_SIZE,
                "canonical mouse event must fit runtime message");
@@ -50,10 +52,41 @@ static bool g_reconnect_after_disconnect;
 static blu2usb_ble_hogp_vendor_backend_t g_vendor_backend;
 static bool g_vendor_registered;
 
+typedef enum {
+    BLE_HOGP_CANDIDATE_IDLE = 0,
+    BLE_HOGP_CANDIDATE_SCANNING,
+    BLE_HOGP_CANDIDATE_CONNECTING,
+    BLE_HOGP_CANDIDATE_SECURING,
+    BLE_HOGP_CANDIDATE_CONNECTING_HIDS,
+    BLE_HOGP_CANDIDATE_READY,
+    BLE_HOGP_CANDIDATE_DISCONNECTING,
+    BLE_HOGP_CANDIDATE_PROMOTED,
+} ble_hogp_candidate_state_t;
+
+static ble_hogp_candidate_state_t g_candidate_state;
+static bd_addr_t g_candidate_address;
+static bd_addr_type_t g_candidate_address_type;
+static hci_con_handle_t g_candidate_connection_handle = HCI_CON_HANDLE_INVALID;
+static uint16_t g_candidate_hids_cid;
+static blu2usb_ble_hogp_parser_t g_candidate_parser;
+static btstack_timer_source_t g_candidate_timer;
+static bool g_candidate_timer_active;
+static bool g_candidate_delete_bond;
+static bool g_candidate_resume_scan;
+static bool g_candidate_promoted;
+static bool g_commit_pending;
+static uint32_t g_candidate_generation;
+static blu2usb_ble_hogp_session_roles_t g_session_roles;
+
 static void handle_gatt_client_event(uint8_t packet_type, uint16_t channel,
                                      uint8_t *packet, uint16_t size);
+static void handle_candidate_gatt_event(uint8_t packet_type, uint16_t channel,
+                                        uint8_t *packet, uint16_t size);
 static void start_scan(void);
 static void reconnect_or_scan(void);
+static void candidate_start_scan_locked(void);
+static void candidate_clear_transport_locked(void);
+static void candidate_timeout_handler(btstack_timer_source_t *timer);
 
 bool blu2usb_ble_hogp_register_vendor_backend(
     const blu2usb_ble_hogp_vendor_backend_t *backend)
