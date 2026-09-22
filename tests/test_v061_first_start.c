@@ -74,11 +74,22 @@ static void test_searching_first_layout_and_didactic_controls(void)
     for (unsigned row = 0u; row < BLU2USB_RENDERER_TEXT_ROWS; ++row) {
         assert_row(&frame, row, rows[row]);
         assert(blu2usb_renderer_background_rgb565(&frame, (uint8_t)row) ==
-               BLU2USB_COLOR_BLACK);
+               BLU2USB_COLOR_DARK_MAGENTA);
     }
 
     assert(frame.cells[1][0].tone == BLU2USB_UI_TONE_STATIC);
     assert(frame.cells[2][0].tone == BLU2USB_UI_TONE_STATIC);
+
+    /* Full didactic geometry: 25 px between body baselines after the title. */
+    assert(blu2usb_renderer_text_y(&frame, 0u) == 8u);
+    assert(blu2usb_renderer_text_y(&frame, 1u) == 39u);
+    assert(blu2usb_renderer_text_y(&frame, 2u) == 64u);
+    assert(blu2usb_renderer_text_y(&frame, 3u) == 89u);
+    assert(blu2usb_renderer_text_y(&frame, 4u) == 114u);
+    assert(blu2usb_renderer_text_y(&frame, 5u) == 139u);
+    assert(blu2usb_renderer_text_y(&frame, 6u) == 164u);
+    assert(blu2usb_renderer_text_y(&frame, 7u) == 189u);
+    assert(blu2usb_renderer_text_y(&frame, 8u) == 214u);
 
     for (unsigned control = 0u; control < BLU2USB_CONTROL_COUNT; ++control) {
         (void)tap(&ux, (blu2usb_control_t)control);
