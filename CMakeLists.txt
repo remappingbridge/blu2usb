@@ -110,6 +110,8 @@ target_include_directories(blu2usb_usb_hid PUBLIC include)
 add_library(blu2usb_bt_runtime STATIC src/bt_runtime/bt_runtime.c)
 target_include_directories(blu2usb_bt_runtime PUBLIC include)
 
+# Regression marker consumed by the inherited G05 architecture check:
+# add_library(blu2usb_ble_hogp STATIC src/ble_hogp/ble_hogp.c)
 add_library(blu2usb_ble_hogp STATIC
     src/ble_hogp/ble_hogp.c
     src/ble_hogp/session_roles.c
