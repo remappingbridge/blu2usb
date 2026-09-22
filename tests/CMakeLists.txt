@@ -68,3 +68,15 @@ add_test(
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_screen_contract.py
             ${PROJECT_SOURCE_DIR}
 )
+
+add_executable(blu2usb_test_mux01_device_registry test_mux01_device_registry.c)
+target_link_libraries(blu2usb_test_mux01_device_registry PRIVATE
+    blu2usb_device_registry
+)
+add_test(NAME mux01_device_registry COMMAND blu2usb_test_mux01_device_registry)
+
+add_test(
+    NAME mux01_architecture
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_mux01_architecture.py
+            ${PROJECT_SOURCE_DIR}
+)
