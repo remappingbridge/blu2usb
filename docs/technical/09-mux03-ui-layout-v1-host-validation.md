@@ -1,6 +1,6 @@
 # MUX-03 validation — Mouse UI Layout 1.0 host model and projection
 
-Status: **IMPLEMENTED — HUMAN ACCEPTANCE PENDING**
+Status: **ACCEPTED**
 
 Branch: `gate/mux-03-ui-layout-v1-host`
 
@@ -370,3 +370,6 @@ The first mandatory physical gate remains **MUX-05**.
 Human acceptance is required after canonical CI passes on the final documentation/checklist head.
 
 MUX-04 will expand durable product storage for the registry, per-Mouse confirmed profile and global Custom template. It still defers the first mandatory physical test to MUX-05.
+
+
+Human acceptance recorded on 2026-09-22. MUX-04 must branch from this accepted head.
