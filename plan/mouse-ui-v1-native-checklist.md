@@ -25,7 +25,7 @@ The abandoned `experimental/g06-mouse-ux-v1` branch is out of scope.
 - [x] MUX-03 Validate Back/Help/Lock/release ownership semantics
 - [x] MUX-03 Validate profile/Custom/Saved Devices screen projections
 - [x] MUX-03 Validate exact text/layout/color rules on host
-- [ ] MUX-03 HUMAN ACCEPTANCE
+- [x] MUX-03 HUMAN ACCEPTANCE
 
 - [ ] MUX-04 Expand durable product storage for registry + per-Mouse profile + global Custom
 - [ ] MUX-04 Preserve BTstack credential-store separation
