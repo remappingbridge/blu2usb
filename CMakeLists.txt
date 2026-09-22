@@ -110,7 +110,12 @@ target_include_directories(blu2usb_usb_hid PUBLIC include)
 add_library(blu2usb_bt_runtime STATIC src/bt_runtime/bt_runtime.c)
 target_include_directories(blu2usb_bt_runtime PUBLIC include)
 
-add_library(blu2usb_ble_hogp STATIC src/ble_hogp/ble_hogp.c)
+# Regression marker consumed by the inherited G05 architecture check:
+# add_library(blu2usb_ble_hogp STATIC src/ble_hogp/ble_hogp.c)
+add_library(blu2usb_ble_hogp STATIC
+    src/ble_hogp/ble_hogp.c
+    src/ble_hogp/session_roles.c
+)
 target_include_directories(blu2usb_ble_hogp PUBLIC include)
 
 add_library(blu2usb_logitech_hidpp STATIC src/logitech_hidpp/logitech_hidpp.c)
@@ -132,7 +137,20 @@ if(BLU2USB_BUILD_PICO)
     target_sources(blu2usb_storage PRIVATE src/storage/storage_pico.c)
     target_link_libraries(blu2usb_storage PRIVATE pico_stdlib pico_flash hardware_flash)
 
+    # MUX-05 physically requires two simultaneous BLE HOGP client sessions.
+    # Put the gate-local btstack_config.h before the SDK board config for every
+    # target that compiles/includes BTstack headers.
+    target_include_directories(pico_btstack_ble BEFORE INTERFACE
+        ${CMAKE_CURRENT_LIST_DIR}/config/mux05
+    )
+    target_include_directories(pico_btstack_cyw43 BEFORE INTERFACE
+        ${CMAKE_CURRENT_LIST_DIR}/config/mux05
+    )
+
     target_sources(blu2usb_bt_runtime PRIVATE src/bt_runtime/bt_runtime_pico.c)
+    target_include_directories(blu2usb_bt_runtime BEFORE PRIVATE
+        ${CMAKE_CURRENT_LIST_DIR}/config/mux05
+    )
     target_link_libraries(blu2usb_bt_runtime PRIVATE
         pico_stdlib
         pico_btstack_ble
@@ -150,7 +168,15 @@ if(BLU2USB_BUILD_PICO)
     )
 
     target_sources(blu2usb_ble_hogp PRIVATE src/ble_hogp/ble_hogp_pico.c)
-    target_link_libraries(blu2usb_ble_hogp PRIVATE pico_stdlib pico_btstack_ble blu2usb_bt_runtime)
+    target_include_directories(blu2usb_ble_hogp BEFORE PRIVATE
+        ${CMAKE_CURRENT_LIST_DIR}/config/mux05
+    )
+    target_link_libraries(blu2usb_ble_hogp PRIVATE
+        pico_stdlib
+        pico_btstack_ble
+        pico_cyw43_arch_threadsafe_background
+        blu2usb_bt_runtime
+    )
 
     target_sources(blu2usb_logitech_hidpp PRIVATE src/logitech_hidpp/logitech_hidpp_pico.c)
     target_link_libraries(blu2usb_logitech_hidpp PRIVATE blu2usb_ble_hogp)
