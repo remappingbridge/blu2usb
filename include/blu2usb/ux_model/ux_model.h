@@ -45,6 +45,9 @@ typedef enum {
     BLU2USB_SCREEN_DEVICE_DETAILS_COMPOSITE,
     BLU2USB_SCREEN_REMOVE_DEVICE,
     BLU2USB_SCREEN_LEARN_KEYS,
+    /* v0.6.1 startup UX: appended to preserve all v0.6 screen IDs. */
+    BLU2USB_SCREEN_SEARCHING_FIRST_MOUSE,
+    BLU2USB_SCREEN_FIRST_MOUSE_CONNECTED,
     BLU2USB_SCREEN_COUNT
 } blu2usb_screen_id_t;
 
@@ -84,6 +87,7 @@ typedef struct {
     unsigned saved_device_count;
     blu2usb_mouse_profile_kind_t active_profile;
     bool custom_dirty;
+    bool first_start_complete;
     blu2usb_mouse_source_t custom_source;
     blu2usb_mouse_target_t custom_targets[BLU2USB_MOUSE_SOURCE_COUNT];
 } blu2usb_ux_model_t;
@@ -99,6 +103,9 @@ void blu2usb_ux_restore_profile_state(
     const blu2usb_mouse_target_t custom_targets[BLU2USB_MOUSE_SOURCE_COUNT]);
 void blu2usb_ux_set_mouse_connected(bool connected);
 bool blu2usb_ux_mouse_connected(void);
+void blu2usb_ux_begin_first_start(blu2usb_ux_model_t *ux);
+void blu2usb_ux_first_mouse_connected(blu2usb_ux_model_t *ux);
+void blu2usb_ux_first_mouse_disconnected(blu2usb_ux_model_t *ux);
 const blu2usb_screen_template_t *blu2usb_ux_screen_template(blu2usb_screen_id_t screen);
 unsigned blu2usb_ux_option_count(const blu2usb_ux_model_t *ux);
 uint16_t blu2usb_ux_learn_white_span_mask(const blu2usb_ux_model_t *ux);
