@@ -145,7 +145,7 @@ unsigned blu2usb_ux_option_count(const blu2usb_ux_model_t *ux) {
 
 void blu2usb_ux_init(blu2usb_ux_model_t *ux) {
     blu2usb_interaction_init(&ux->interaction);
-    ux->screen = BLU2USB_SCREEN_SEARCHING_FIRST_MOUSE;
+    ux->screen = BLU2USB_SCREEN_HOME;
     ux->return_screen = BLU2USB_SCREEN_HOME;
     ux->selection = 0;
     ux->status_page = 0;
@@ -154,7 +154,7 @@ void blu2usb_ux_init(blu2usb_ux_model_t *ux) {
     ux->saved_device_count = 0;
     ux->active_profile = BLU2USB_MOUSE_PROFILE_PASSTHROUGH;
     ux->custom_dirty = false;
-    ux->first_start_complete = false;
+    ux->first_start_complete = true;
     ux->custom_source = BLU2USB_MOUSE_SOURCE_LEFT;
     ux->custom_targets[BLU2USB_MOUSE_SOURCE_LEFT] = BLU2USB_MOUSE_TARGET_LEFT;
     ux->custom_targets[BLU2USB_MOUSE_SOURCE_RIGHT] = BLU2USB_MOUSE_TARGET_RIGHT;
@@ -383,6 +383,13 @@ blu2usb_ux_command_t blu2usb_ux_input(blu2usb_ux_model_t *ux, blu2usb_control_t 
     }
 
     return cmd;
+}
+
+void blu2usb_ux_begin_first_start(blu2usb_ux_model_t *ux)
+{
+    if (ux == NULL) return;
+    ux->first_start_complete = false;
+    enter(ux, BLU2USB_SCREEN_SEARCHING_FIRST_MOUSE);
 }
 
 void blu2usb_ux_first_mouse_connected(blu2usb_ux_model_t *ux)
