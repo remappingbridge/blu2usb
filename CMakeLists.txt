@@ -165,7 +165,7 @@ if(BLU2USB_BUILD_PICO)
         blu2usb_contract
         blu2usb_module_app
     )
-    target_compile_definitions(blu2usb_picow PRIVATE CYW43_LWIP=0 PICO_STACK_SIZE=0x4000)
+    target_compile_definitions(blu2usb_picow PRIVATE CYW43_LWIP=0)
 
     pico_enable_stdio_usb(blu2usb_picow 0)
     pico_enable_stdio_uart(blu2usb_picow 0)
