@@ -48,11 +48,12 @@ static btstack_timer_source_t g_reconnect_timer;
 static bool g_reconnect_timer_active;
 static bool g_reconnect_cancel_pending;
 static bool g_reconnect_after_disconnect;
-static bool g_saved_search_mode;
+static volatile bool g_saved_search_mode;
 static bool g_saved_timeout_pending;
 static bool g_idle_after_disconnect;
 static volatile bool g_request_retry_saved_search;
 static volatile bool g_request_cancel_saved_search;
+static volatile bool g_request_open_scan;
 static blu2usb_ble_hogp_vendor_backend_t g_vendor_backend;
 static bool g_vendor_registered;
 
@@ -305,13 +306,32 @@ static void service_saved_search_requests(void)
         }
     }
 
+    if (g_request_open_scan) {
+        if (g_saved_search_mode) {
+            g_request_open_scan = false;
+        } else if (g_state == BLE_HOGP_STATE_IDLE) {
+            g_request_open_scan = false;
+            start_scan();
+        } else if (g_state == BLE_HOGP_STATE_SCANNING ||
+                   g_state == BLE_HOGP_STATE_READY) {
+            g_request_open_scan = false;
+        }
+    }
+
     if (g_request_retry_saved_search) {
         if (!g_saved_search_mode || g_state == BLE_HOGP_STATE_READY) {
             g_request_retry_saved_search = false;
-        } else if (g_state == BLE_HOGP_STATE_IDLE) {
-            g_request_retry_saved_search = false;
-            if (!start_bonded_reconnect())
-                finish_saved_search(true);
+        } else {
+            if (g_state == BLE_HOGP_STATE_SCANNING) {
+                gap_stop_scan();
+                g_state = BLE_HOGP_STATE_IDLE;
+            }
+
+            if (g_state == BLE_HOGP_STATE_IDLE) {
+                g_request_retry_saved_search = false;
+                if (!start_bonded_reconnect())
+                    finish_saved_search(true);
+            }
         }
     }
 }
@@ -524,6 +544,7 @@ static void ble_hogp_session_setup(void)
     g_idle_after_disconnect = false;
     g_request_retry_saved_search = false;
     g_request_cancel_saved_search = false;
+    g_request_open_scan = false;
     hids_client_init(g_descriptor_storage, sizeof(g_descriptor_storage));
     g_hci_registration.callback = &hci_packet_handler;
     hci_add_event_handler(&g_hci_registration);
@@ -543,6 +564,8 @@ bool blu2usb_ble_hogp_start(void)
 void blu2usb_ble_hogp_set_saved_search_mode(bool enabled)
 {
     g_saved_search_mode = enabled;
+    if (!enabled)
+        g_request_open_scan = true;
 }
 
 bool blu2usb_ble_hogp_retry_saved_search(void)
