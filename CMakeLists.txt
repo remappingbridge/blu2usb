@@ -14,7 +14,7 @@ if(BLU2USB_BUILD_PICO)
     include("${PICO_SDK_PATH}/external/pico_sdk_import.cmake")
 endif()
 
-project(blu2usb_picow VERSION 0.6.1 LANGUAGES C CXX ASM)
+project(blu2usb_picow VERSION 0.6.2 LANGUAGES C CXX ASM)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -35,7 +35,7 @@ blu2usb_declare_contract_modules()
 
 add_library(blu2usb_contract STATIC src/domain/version.c)
 target_include_directories(blu2usb_contract PUBLIC include)
-target_compile_definitions(blu2usb_contract PUBLIC BLU2USB_VERSION_STRING="0.6.1")
+target_compile_definitions(blu2usb_contract PUBLIC BLU2USB_VERSION_STRING="0.6.2")
 # v0.6/G06 regression marker retained for inherited architecture tests:
 # BLU2USB_VERSION_STRING="0.6.0-g06"
 # Regression marker consumed by the inherited G05 architecture check only:
