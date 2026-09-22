@@ -17,6 +17,10 @@ typedef enum {
     BLU2USB_BLE_HOGP_MESSAGE_CONNECTED = 1,
     BLU2USB_BLE_HOGP_MESSAGE_DISCONNECTED = 2,
     BLU2USB_BLE_HOGP_MESSAGE_MOUSE = 3,
+    BLU2USB_BLE_HOGP_MESSAGE_PROVISIONAL_READY = 4,
+    BLU2USB_BLE_HOGP_MESSAGE_PROVISIONAL_CLEARED = 5,
+    BLU2USB_BLE_HOGP_MESSAGE_PROVISIONAL_TIMEOUT = 6,
+    BLU2USB_BLE_HOGP_MESSAGE_PROMOTED = 7,
 } blu2usb_ble_hogp_message_type_t;
 
 typedef enum {
@@ -64,10 +68,20 @@ typedef enum {
     BLU2USB_BLE_HOGP_EVENT_CONNECTED = 0,
     BLU2USB_BLE_HOGP_EVENT_DISCONNECTED,
     BLU2USB_BLE_HOGP_EVENT_MOUSE,
+    BLU2USB_BLE_HOGP_EVENT_PROVISIONAL_READY,
+    BLU2USB_BLE_HOGP_EVENT_PROVISIONAL_CLEARED,
+    BLU2USB_BLE_HOGP_EVENT_PROVISIONAL_TIMEOUT,
+    BLU2USB_BLE_HOGP_EVENT_PROMOTED,
 } blu2usb_ble_hogp_event_type_t;
 
 typedef struct {
+    uint32_t generation;
+    blu2usb_ble_hogp_peer_t peer;
+} blu2usb_ble_hogp_provisional_event_t;
+
+typedef struct {
     blu2usb_ble_hogp_event_type_t type;
+    uint32_t generation;
     blu2usb_ble_hogp_peer_t peer;
     blu2usb_canonical_mouse_event_t mouse;
 } blu2usb_ble_hogp_event_t;
@@ -115,5 +129,12 @@ bool blu2usb_ble_hogp_decode_runtime_message(const blu2usb_bt_runtime_message_t 
 bool blu2usb_ble_hogp_register_vendor_backend(
     const blu2usb_ble_hogp_vendor_backend_t *backend);
 bool blu2usb_ble_hogp_start(void);
+
+/* MUX-05 transport experiment. These controls are serialized onto the
+ * CYW43/BTstack async context by the Pico implementation. They do not mutate
+ * product storage or the MUX registry. */
+bool blu2usb_ble_hogp_pair_new_start(uint32_t *generation_out);
+bool blu2usb_ble_hogp_pair_new_cancel(uint32_t generation);
+bool blu2usb_ble_hogp_pair_new_commit(uint32_t generation);
 
 #endif
