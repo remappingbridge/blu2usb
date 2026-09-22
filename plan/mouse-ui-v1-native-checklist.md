@@ -30,7 +30,7 @@ The abandoned `experimental/g06-mouse-ux-v1` branch is out of scope.
 - [x] MUX-04 Expand durable product storage for registry + per-Mouse profile + global Custom
 - [x] MUX-04 Preserve BTstack credential-store separation
 - [x] MUX-04 Validate corruption fallback and migration/default policy
-- [ ] MUX-04 HUMAN ACCEPTANCE
+- [x] MUX-04 HUMAN ACCEPTANCE
 
 - [ ] MUX-05 Extend BLE only for authoritative + provisional candidate lifecycle
 - [ ] MUX-05 Host-test cancel/late/timeout/handoff transport lifecycle
