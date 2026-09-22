@@ -46,7 +46,12 @@ for token in (
 ):
     assert token in roles, token
 
-assert pico.index("g_candidate_state != BLE_HOGP_CANDIDATE_PROMOTED") < pico.index("blu2usb_ble_hogp_parser_parse_report", pico.index("handle_candidate_gatt_event"))
+candidate_start=pico.index("static void handle_candidate_gatt_event")
+candidate_end=pico.index("static void hci_packet_handler", candidate_start)
+candidate=pico[candidate_start:candidate_end]
+assert "g_candidate_state != BLE_HOGP_CANDIDATE_PROMOTED" in candidate
+assert "blu2usb_ble_hogp_parser_parse_report" in candidate
+assert candidate.index("g_candidate_state != BLE_HOGP_CANDIDATE_PROMOTED") < candidate.index("blu2usb_ble_hogp_parser_parse_report")
 
 release_mouse=app.index("blu2usb_hid_aggregator_release_source")
 commit=app.rindex("blu2usb_ble_hogp_pair_new_commit")
