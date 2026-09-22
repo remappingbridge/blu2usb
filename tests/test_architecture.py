@@ -15,7 +15,7 @@ EXPECTED_DEPS = {
     "profiles": ["domain"],
     "remap": ["domain", "profiles"],
     "device_registry": ["domain"],
-    "connection_coordinator": ["domain", "device_registry", "keyboard_transport", "ble_hogp"],
+    "connection_coordinator": ["domain", "device_registry"],
     "bt_runtime": ["domain"],
     "ble_hogp": ["domain", "bt_runtime"],
     "classic_hid": ["domain", "bt_runtime"],
@@ -37,7 +37,7 @@ EXPECTED_DEPS = {
 
 PURE_MODULES = {
     "domain", "hid_aggregator", "profiles", "remap", "device_registry",
-    "interaction", "ux_model",
+    "connection_coordinator", "interaction", "ux_model",
 }
 
 BTSTACK_ALLOWED = {"bt_runtime", "ble_hogp", "classic_hid", "logitech_hidpp"}
