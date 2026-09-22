@@ -20,6 +20,8 @@ for token in (
     "#define MAX_NR_GATT_CLIENTS 2",
     "#define MAX_NR_HCI_CONNECTIONS 2",
     "#define MAX_NR_HIDS_CLIENTS 2",
+    "#define ENABLE_LE_PERIPHERAL",
+    "#define ENABLE_LE_PRIVACY_ADDRESS_RESOLUTION",
 ):
     assert token in cfg, token
 
@@ -43,6 +45,7 @@ for token in (
     "BLU2USB_BLE_HOGP_ROLE_PROVISIONAL",
     "BLU2USB_BLE_HOGP_ROLE_RETIRING",
     "active_generation",
+    "blu2usb_ble_hogp_session_abort_commit",
 ):
     assert token in roles, token
 
