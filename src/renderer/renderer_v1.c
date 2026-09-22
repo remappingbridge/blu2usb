@@ -304,7 +304,7 @@ static const screen_rows_t k_screens[BLU2USB_UI_V1_SCREEN_COUNT] = {
         "PROFILE: PASSTHROUGH",
         " REMOVE DEVICE",
         EMPTY,
-        "JOY RIGHT\LEFT: PAGE",
+        "JOY RIGHT\\LEFT: PAGE",
         "JOY PRESS: ACCESS",
         "KEY B: BACK",
     }},
@@ -537,7 +537,7 @@ static bool row_has_control(const char *row, blu2usb_control_t control)
     case BLU2USB_CONTROL_JOY_DOWN:
         return strstr(row, "JOY DOWN") != NULL || strstr(row, "UP / DOWN") != NULL;
     case BLU2USB_CONTROL_JOY_LEFT:
-        return strstr(row, "LEFT: PAGE") != NULL || strstr(row, "RIGHT\LEFT") != NULL;
+        return strstr(row, "LEFT: PAGE") != NULL || strstr(row, "RIGHT\\LEFT") != NULL;
     case BLU2USB_CONTROL_JOY_RIGHT:
         return strstr(row, "RIGHT") != NULL && strstr(row, "JOY") != NULL;
     case BLU2USB_CONTROL_JOY_PRESS:
