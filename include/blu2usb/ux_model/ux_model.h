@@ -103,6 +103,7 @@ void blu2usb_ux_restore_profile_state(
     const blu2usb_mouse_target_t custom_targets[BLU2USB_MOUSE_SOURCE_COUNT]);
 void blu2usb_ux_set_mouse_connected(bool connected);
 bool blu2usb_ux_mouse_connected(void);
+void blu2usb_ux_begin_first_start(blu2usb_ux_model_t *ux);
 void blu2usb_ux_first_mouse_connected(blu2usb_ux_model_t *ux);
 void blu2usb_ux_first_mouse_disconnected(blu2usb_ux_model_t *ux);
 const blu2usb_screen_template_t *blu2usb_ux_screen_template(blu2usb_screen_id_t screen);
