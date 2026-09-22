@@ -916,25 +916,78 @@ static void hci_packet_handler(uint8_t packet_type, uint16_t channel,
 static void sm_packet_handler(uint8_t packet_type, uint16_t channel,
                               uint8_t *packet, uint16_t size)
 {
-    (void)channel; (void)size;
+    (void)channel;
+    (void)size;
     if (packet_type != HCI_EVENT_PACKET) return;
-    bool ready = false;
+
     switch (hci_event_packet_get_type(packet)) {
     case SM_EVENT_JUST_WORKS_REQUEST:
-        sm_just_works_confirm(sm_event_just_works_request_get_handle(packet)); break;
+        sm_just_works_confirm(
+            sm_event_just_works_request_get_handle(packet));
+        break;
+
     case SM_EVENT_NUMERIC_COMPARISON_REQUEST:
-        sm_numeric_comparison_confirm(sm_event_passkey_display_number_get_handle(packet)); break;
-    case SM_EVENT_PAIRING_COMPLETE:
-        if (sm_event_pairing_complete_get_status(packet) == ERROR_CODE_SUCCESS) ready = true;
-        else disconnect_and_rescan();
+        sm_numeric_comparison_confirm(
+            sm_event_passkey_display_number_get_handle(packet));
         break;
-    case SM_EVENT_REENCRYPTION_COMPLETE:
-        if (sm_event_reencryption_complete_get_status(packet) == ERROR_CODE_SUCCESS) ready = true;
-        else disconnect_and_rescan();
+
+    case SM_EVENT_PAIRING_COMPLETE: {
+        const hci_con_handle_t handle =
+            sm_event_pairing_complete_get_handle(packet);
+        const uint8_t status =
+            sm_event_pairing_complete_get_status(packet);
+
+        if (handle == g_candidate_connection_handle &&
+            g_candidate_state == BLE_HOGP_CANDIDATE_SECURING) {
+            if (status == ERROR_CODE_SUCCESS) {
+                connect_candidate_hid_service();
+            } else {
+                candidate_abort_locked(
+                    BLU2USB_BLE_HOGP_MESSAGE_PROVISIONAL_CLEARED,
+                    true);
+            }
+            break;
+        }
+
+        if (handle == g_connection_handle &&
+            g_state == BLE_HOGP_STATE_SECURING) {
+            if (status == ERROR_CODE_SUCCESS)
+                connect_hid_service();
+            else
+                disconnect_and_rescan();
+        }
         break;
-    default: break;
     }
-    if (ready && g_state == BLE_HOGP_STATE_SECURING) connect_hid_service();
+
+    case SM_EVENT_REENCRYPTION_COMPLETE: {
+        const hci_con_handle_t handle =
+            sm_event_reencryption_complete_get_handle(packet);
+        const uint8_t status =
+            sm_event_reencryption_complete_get_status(packet);
+
+        if (handle == g_candidate_connection_handle &&
+            g_candidate_state == BLE_HOGP_CANDIDATE_SECURING) {
+            /* Re-encryption proves this peer is already bonded. NEW must not
+             * accept it, and its existing bond must be preserved. */
+            candidate_abort_locked(
+                BLU2USB_BLE_HOGP_MESSAGE_PROVISIONAL_CLEARED,
+                false);
+            break;
+        }
+
+        if (handle == g_connection_handle &&
+            g_state == BLE_HOGP_STATE_SECURING) {
+            if (status == ERROR_CODE_SUCCESS)
+                connect_hid_service();
+            else
+                disconnect_and_rescan();
+        }
+        break;
+    }
+
+    default:
+        break;
+    }
 }
 
 static void ble_hogp_session_setup(void)
