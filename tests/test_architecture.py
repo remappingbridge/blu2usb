@@ -22,7 +22,7 @@ EXPECTED_DEPS = {
     "keyboard_transport": ["domain", "ble_hogp", "classic_hid"],
     "logitech_hidpp": ["domain", "bt_runtime", "ble_hogp"],
     "usb_hid": ["domain", "hid_aggregator"],
-    "storage": ["domain"],
+    "storage": ["domain", "device_registry", "profiles"],
     "interaction": ["domain"],
     "ux_model": ["domain", "interaction", "device_registry"],
     "renderer": ["ux_model"],
