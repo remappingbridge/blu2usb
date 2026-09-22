@@ -4,6 +4,8 @@
 #include <string.h>
 #include "btstack.h"
 #include "ble/le_device_db.h"
+#include "pico/async_context.h"
+#include "pico/cyw43_arch.h"
 
 #define BLE_HOGP_DESCRIPTOR_STORAGE_SIZE 4096u
 #define BLE_HOGP_REJECTED_DEVICE_CAPACITY 4u
@@ -729,6 +731,14 @@ static void hci_packet_handler(uint8_t packet_type, uint16_t channel,
             GAP_SUBEVENT_LE_CONNECTION_COMPLETE)
             break;
 
+        if (g_candidate_state == BLE_HOGP_CANDIDATE_DISCONNECTING &&
+            g_candidate_connection_handle == HCI_CON_HANDLE_INVALID) {
+            /* Completion after gap_connect_cancel(). The operation was already
+             * invalidated/published by cancel/timeout. */
+            candidate_clear_transport_locked();
+            break;
+        }
+
         if (g_candidate_state == BLE_HOGP_CANDIDATE_CONNECTING) {
             const uint8_t status =
                 gap_subevent_le_connection_complete_get_status(packet);
@@ -993,28 +1003,142 @@ static void sm_packet_handler(uint8_t packet_type, uint16_t channel,
 static void ble_hogp_session_setup(void)
 {
     memset(&g_parser, 0, sizeof(g_parser));
+    memset(&g_candidate_parser, 0, sizeof(g_candidate_parser));
     memset(g_rejected_devices, 0, sizeof(g_rejected_devices));
     memset(g_remote_address, 0, sizeof(g_remote_address));
+    memset(g_candidate_address, 0, sizeof(g_candidate_address));
+
     g_remote_address_type = BD_ADDR_TYPE_UNKNOWN;
+    g_candidate_address_type = BD_ADDR_TYPE_UNKNOWN;
     g_rejected_next = 0u;
+
     g_state = BLE_HOGP_STATE_WAITING_FOR_STACK;
     g_connection_handle = HCI_CON_HANDLE_INVALID;
     g_hids_cid = 0u;
+
+    g_candidate_state = BLE_HOGP_CANDIDATE_IDLE;
+    g_candidate_connection_handle = HCI_CON_HANDLE_INVALID;
+    g_candidate_hids_cid = 0u;
+    g_candidate_timer_active = false;
+    g_candidate_delete_bond = false;
+    g_candidate_resume_scan = false;
+    g_candidate_promoted = false;
+    g_commit_pending = false;
+    g_candidate_generation = 0u;
+    blu2usb_ble_hogp_session_roles_init(&g_session_roles);
+
     g_reconnect_timer_active = false;
     g_reconnect_cancel_pending = false;
     g_reconnect_after_disconnect = false;
+
     hids_client_init(g_descriptor_storage, sizeof(g_descriptor_storage));
+
     g_hci_registration.callback = &hci_packet_handler;
     hci_add_event_handler(&g_hci_registration);
     g_sm_registration.callback = &sm_packet_handler;
     sm_add_event_handler(&g_sm_registration);
-    btstack_run_loop_set_timer_handler(&g_reconnect_timer, reconnect_timeout_handler);
-    btstack_run_loop_set_timer_handler(&g_vendor_timer, vendor_timer_handler);
-    btstack_run_loop_set_timer(&g_vendor_timer, BLE_HOGP_VENDOR_SERVICE_MS);
+
+    btstack_run_loop_set_timer_handler(
+        &g_reconnect_timer, reconnect_timeout_handler);
+    btstack_run_loop_set_timer_handler(
+        &g_candidate_timer, candidate_timeout_handler);
+    btstack_run_loop_set_timer_handler(
+        &g_vendor_timer, vendor_timer_handler);
+    btstack_run_loop_set_timer(
+        &g_vendor_timer, BLE_HOGP_VENDOR_SERVICE_MS);
     btstack_run_loop_add_timer(&g_vendor_timer);
 }
 
 bool blu2usb_ble_hogp_start(void)
 {
     return blu2usb_bt_runtime_start(ble_hogp_session_setup);
+}
+
+static bool pair_new_start_locked(uint32_t *generation_out)
+{
+    if (generation_out == NULL || g_candidate_promoted ||
+        g_candidate_state != BLE_HOGP_CANDIDATE_IDLE)
+        return false;
+
+    uint8_t slot = BLU2USB_BLE_HOGP_SESSION_SLOT_NONE;
+    uint32_t generation = 0u;
+
+    if (!blu2usb_ble_hogp_session_start_new(
+            &g_session_roles, &slot, &generation) ||
+        slot != 1u)
+        return false;
+
+    memset(&g_candidate_parser, 0, sizeof(g_candidate_parser));
+    memset(g_candidate_address, 0, sizeof(g_candidate_address));
+    g_candidate_address_type = BD_ADDR_TYPE_UNKNOWN;
+    g_candidate_connection_handle = HCI_CON_HANDLE_INVALID;
+    g_candidate_hids_cid = 0u;
+    g_candidate_delete_bond = false;
+    g_candidate_resume_scan = false;
+    g_candidate_generation = generation;
+
+    start_candidate_timer();
+    candidate_start_scan_locked();
+    *generation_out = generation;
+    return true;
+}
+
+bool blu2usb_ble_hogp_pair_new_start(uint32_t *generation_out)
+{
+    async_context_t *context = cyw43_arch_async_context();
+    if (context == NULL || generation_out == NULL) return false;
+
+    async_context_acquire_lock_blocking(context);
+    const bool result = pair_new_start_locked(generation_out);
+    async_context_release_lock(context);
+    return result;
+}
+
+bool blu2usb_ble_hogp_pair_new_cancel(uint32_t generation)
+{
+    async_context_t *context = cyw43_arch_async_context();
+    if (context == NULL || generation == 0u) return false;
+
+    async_context_acquire_lock_blocking(context);
+    const bool valid =
+        g_session_roles.new_active &&
+        !g_session_roles.commit_pending &&
+        g_candidate_generation == generation;
+
+    if (valid)
+        candidate_abort_locked(
+            BLU2USB_BLE_HOGP_MESSAGE_PROVISIONAL_CLEARED, true);
+
+    async_context_release_lock(context);
+    return valid;
+}
+
+bool blu2usb_ble_hogp_pair_new_commit(uint32_t generation)
+{
+    async_context_t *context = cyw43_arch_async_context();
+    if (context == NULL || generation == 0u) return false;
+
+    async_context_acquire_lock_blocking(context);
+
+    uint8_t retiring = BLU2USB_BLE_HOGP_SESSION_SLOT_NONE;
+    const bool valid =
+        g_candidate_state == BLE_HOGP_CANDIDATE_READY &&
+        g_candidate_generation == generation &&
+        g_connection_handle != HCI_CON_HANDLE_INVALID &&
+        blu2usb_ble_hogp_session_begin_commit(
+            &g_session_roles, generation, &retiring) &&
+        retiring == 0u;
+
+    if (valid) {
+        stop_candidate_timer();
+        g_commit_pending = true;
+        if (g_vendor_registered)
+            g_vendor_backend.session(
+                g_vendor_backend.context, false);
+        g_state = BLE_HOGP_STATE_DISCONNECTING;
+        gap_disconnect(g_connection_handle);
+    }
+
+    async_context_release_lock(context);
+    return valid;
 }
