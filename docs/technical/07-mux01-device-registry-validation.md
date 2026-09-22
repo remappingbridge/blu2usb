@@ -1,6 +1,6 @@
 # MUX-01 validation — host-pure Mouse registry and product snapshot
 
-Status: **IMPLEMENTED — HUMAN ACCEPTANCE PENDING**
+Status: **ACCEPTED**
 
 Branch: `gate/mux-01-device-registry`
 
@@ -160,3 +160,6 @@ MUX-01 is implementation-complete when its final-head CI is green.
 Human acceptance is required before MUX-02 branches from the exact accepted MUX-01 SHA.
 
 MUX-02 will implement the host-pure coordinator, FIRST/SAVED/NEW operation semantics, tokens, cancellation, HOME resolver and handoff/remove state machines. It must still make no BLE transport changes.
+
+
+Human acceptance recorded on 2026-09-22. MUX-02 must branch from this accepted head.
