@@ -1,6 +1,6 @@
 # MUX-00 acceptance record
 
-Status: **IMPLEMENTED — HUMAN ACCEPTANCE PENDING**
+Status: **ACCEPTED**
 
 Branch: `gate/mux-00-migration-contract-freeze`
 
@@ -56,6 +56,4 @@ No production firmware file is intentionally changed by MUX-00.
 
 ## Gate close condition
 
-MUX-00 requires human acceptance because it changes the normative Mouse-facing product contract for all following gates.
-
-After acceptance, MUX-01 must branch from the exact accepted MUX-00 SHA and implement only the host-pure registry/product snapshot. BLE transport changes remain prohibited until their planned gates.
+MUX-00 was human-accepted on 2026-09-22. MUX-01 must branch from the exact accepted MUX-00 SHA and implement only the host-pure registry/product snapshot. BLE transport changes remain prohibited until their planned gates.
