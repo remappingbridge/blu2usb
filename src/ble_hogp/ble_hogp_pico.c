@@ -18,6 +18,8 @@
 
 _Static_assert(sizeof(blu2usb_canonical_mouse_event_t) <= BLU2USB_BT_RUNTIME_MESSAGE_PAYLOAD_SIZE,
                "canonical mouse event must fit runtime message");
+_Static_assert(sizeof(blu2usb_ble_hogp_provisional_event_t) <= BLU2USB_BT_RUNTIME_MESSAGE_PAYLOAD_SIZE,
+               "provisional event must fit runtime message");
 
 typedef enum {
     BLE_HOGP_STATE_WAITING_FOR_STACK = 0,
@@ -819,6 +821,13 @@ static void hci_packet_handler(uint8_t packet_type, uint16_t channel,
 
             if (g_session_roles.new_active) {
                 const uint32_t generation = g_candidate_generation;
+                const bd_addr_type_t peer_type = g_candidate_address_type;
+                bd_addr_t peer_address;
+                memcpy(
+                    peer_address,
+                    g_candidate_address,
+                    sizeof(peer_address));
+
                 stop_candidate_timer();
                 (void)blu2usb_ble_hogp_session_disconnected(
                     &g_session_roles, 1u);
@@ -828,8 +837,8 @@ static void hci_packet_handler(uint8_t packet_type, uint16_t channel,
                 (void)publish_provisional(
                     BLU2USB_BLE_HOGP_MESSAGE_PROVISIONAL_CLEARED,
                     generation,
-                    g_candidate_address_type,
-                    g_candidate_address);
+                    peer_type,
+                    peer_address);
             } else {
                 candidate_clear_transport_locked();
             }
