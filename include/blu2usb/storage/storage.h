@@ -5,8 +5,12 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define BLU2USB_STORAGE_MAX_PAYLOAD_SIZE 64u
-#define BLU2USB_STORAGE_RECORD_SIZE 80u
+/* The product record occupies six RP2350 flash pages inside one dedicated
+ * sector. Two sectors remain alternated for torn-write fallback. */
+#define BLU2USB_STORAGE_MAX_PAYLOAD_SIZE 1280u
+#define BLU2USB_STORAGE_RECORD_SIZE 1536u
+#define BLU2USB_STORAGE_LEGACY_RECORD_SIZE 80u
+#define BLU2USB_STORAGE_LEGACY_MAX_PAYLOAD_SIZE 64u
 
 bool blu2usb_storage_record_encode(
     uint32_t generation,
@@ -14,6 +18,8 @@ bool blu2usb_storage_record_encode(
     size_t payload_size,
     uint8_t out[BLU2USB_STORAGE_RECORD_SIZE]);
 
+/* Decodes both the current envelope and the accepted G06 legacy envelope.
+ * Legacy bytes occupy the prefix of the larger record buffer. */
 bool blu2usb_storage_record_decode(
     const uint8_t record[BLU2USB_STORAGE_RECORD_SIZE],
     uint32_t *generation,
