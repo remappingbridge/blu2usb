@@ -67,6 +67,8 @@ add_library(blu2usb_connection_coordinator STATIC
 target_include_directories(blu2usb_connection_coordinator PUBLIC include)
 target_link_libraries(blu2usb_connection_coordinator PUBLIC blu2usb_device_registry)
 
+# Regression marker consumed by the inherited G06 architecture check:
+# add_library(blu2usb_storage STATIC src/storage/storage.c)
 add_library(blu2usb_storage STATIC
     src/storage/storage.c
     src/storage/product_state.c
