@@ -462,6 +462,26 @@ bool blu2usb_ble_hogp_decode_runtime_message(const blu2usb_bt_runtime_message_t 
         event->type = BLU2USB_BLE_HOGP_EVENT_MOUSE;
         memcpy(&event->mouse, message->payload, sizeof(event->mouse));
         return true;
+    case BLU2USB_BLE_HOGP_MESSAGE_PROVISIONAL_READY:
+    case BLU2USB_BLE_HOGP_MESSAGE_PROVISIONAL_CLEARED:
+    case BLU2USB_BLE_HOGP_MESSAGE_PROVISIONAL_TIMEOUT:
+    case BLU2USB_BLE_HOGP_MESSAGE_PROMOTED: {
+        if (message->length != sizeof(blu2usb_ble_hogp_provisional_event_t))
+            return false;
+        blu2usb_ble_hogp_provisional_event_t payload;
+        memcpy(&payload, message->payload, sizeof(payload));
+        event->generation = payload.generation;
+        event->peer = payload.peer;
+        if (message->type == BLU2USB_BLE_HOGP_MESSAGE_PROVISIONAL_READY)
+            event->type = BLU2USB_BLE_HOGP_EVENT_PROVISIONAL_READY;
+        else if (message->type == BLU2USB_BLE_HOGP_MESSAGE_PROVISIONAL_CLEARED)
+            event->type = BLU2USB_BLE_HOGP_EVENT_PROVISIONAL_CLEARED;
+        else if (message->type == BLU2USB_BLE_HOGP_MESSAGE_PROVISIONAL_TIMEOUT)
+            event->type = BLU2USB_BLE_HOGP_EVENT_PROVISIONAL_TIMEOUT;
+        else
+            event->type = BLU2USB_BLE_HOGP_EVENT_PROMOTED;
+        return true;
+    }
     default:
         return false;
     }
