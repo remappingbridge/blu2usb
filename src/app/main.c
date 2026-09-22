@@ -213,15 +213,16 @@ static void handle_ux_command(blu2usb_ux_model_t *ux,
             confirm_applied_profile(ux, profiles);
         break;
     case BLU2USB_UX_COMMAND_RETRY_SAVED_SEARCH:
+        blu2usb_ble_hogp_set_saved_search_mode(true);
         (void)blu2usb_ble_hogp_retry_saved_search();
         break;
     case BLU2USB_UX_COMMAND_CANCEL_SAVED_SEARCH:
         blu2usb_ble_hogp_cancel_saved_search();
         break;
     case BLU2USB_UX_COMMAND_PAIR_MOUSE:
-        /* v0.6.2 replaces HOME only. Stop HOME-owned saved search before
-         * entering the inherited v0.6 Pair Mouse page. */
-        blu2usb_ble_hogp_cancel_saved_search();
+        /* Pair Mouse remains the inherited v0.6 page in this point release.
+         * Leave HOME saved-only mode so the original open scan can run. */
+        blu2usb_ble_hogp_set_saved_search_mode(false);
         break;
     default:
         break;
@@ -253,6 +254,8 @@ static bool service_ble_messages(blu2usb_ux_model_t *ux,
                     blu2usb_ux_home_mouse_connected(ux);
                 ui_changed = true;
             }
+            if (ux != NULL && ux->first_start_complete)
+                blu2usb_ble_hogp_set_saved_search_mode(true);
             if (ux != NULL && ux->screen == BLU2USB_SCREEN_PAIR_MOUSE) {
                 ux->screen = BLU2USB_SCREEN_MOUSE_SAVED;
                 ux->selection = 0u;
@@ -355,6 +358,11 @@ int main(void)
                 blu2usb_ux_input(&ux, event.control, event.pressed);
 
             if (!first_start_was_complete && ux.first_start_complete)
+                blu2usb_ble_hogp_set_saved_search_mode(true);
+
+            if (ux.screen == BLU2USB_SCREEN_HOME_SEARCHING ||
+                ux.screen == BLU2USB_SCREEN_HOME_RETRY ||
+                ux.screen == BLU2USB_SCREEN_HOME_CONNECTED)
                 blu2usb_ble_hogp_set_saved_search_mode(true);
 
             handle_ux_command(&ux, command, &profiles, &remap, &aggregator,
