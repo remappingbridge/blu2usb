@@ -238,6 +238,8 @@ static bool service_ble_messages(blu2usb_ux_model_t *ux,
         case BLU2USB_BLE_HOGP_EVENT_CONNECTED:
             if (!blu2usb_ux_mouse_connected()) {
                 blu2usb_ux_set_mouse_connected(true);
+                if (ux != NULL)
+                    blu2usb_ux_first_mouse_connected(ux);
                 ui_changed = true;
             }
             if (ux != NULL && ux->screen == BLU2USB_SCREEN_PAIR_MOUSE) {
@@ -249,6 +251,8 @@ static bool service_ble_messages(blu2usb_ux_model_t *ux,
         case BLU2USB_BLE_HOGP_EVENT_DISCONNECTED:
             if (blu2usb_ux_mouse_connected()) {
                 blu2usb_ux_set_mouse_connected(false);
+                if (ux != NULL)
+                    blu2usb_ux_first_mouse_disconnected(ux);
                 ui_changed = true;
             }
             (void)blu2usb_hid_aggregator_release_source(aggregator, mouse);
@@ -291,7 +295,6 @@ int main(void)
 
     blu2usb_ux_init(&ux);
     blu2usb_ux_set_mouse_connected(false);
-    ux.screen = BLU2USB_SCREEN_LEARN_KEYS;
     blu2usb_hid_aggregator_init(&aggregator);
     blu2usb_profiles_init(&profiles);
     (void)restore_profiles(&profiles);
