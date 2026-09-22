@@ -1125,6 +1125,7 @@ bool blu2usb_ble_hogp_pair_new_commit(uint32_t generation)
             &g_session_roles, generation, &retiring) &&
         retiring == 0u;
 
+    bool committed = valid;
     if (valid) {
         stop_candidate_timer();
         g_commit_pending = true;
@@ -1132,9 +1133,19 @@ bool blu2usb_ble_hogp_pair_new_commit(uint32_t generation)
             g_vendor_backend.session(
                 g_vendor_backend.context, false);
         g_state = BLE_HOGP_STATE_DISCONNECTING;
-        gap_disconnect(g_connection_handle);
+
+        if (gap_disconnect(g_connection_handle) != ERROR_CODE_SUCCESS) {
+            g_state = BLE_HOGP_STATE_READY;
+            g_commit_pending = false;
+            committed = false;
+            (void)blu2usb_ble_hogp_session_abort_commit(
+                &g_session_roles, generation);
+            if (g_vendor_registered)
+                g_vendor_backend.session(
+                    g_vendor_backend.context, true);
+        }
     }
 
     async_context_release_lock(context);
-    return valid;
+    return committed;
 }
