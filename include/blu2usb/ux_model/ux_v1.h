@@ -125,7 +125,7 @@ void blu2usb_ui_v1_profile_result(
     const blu2usb_product_snapshot_t *product,
     bool success);
 
-void blu2usb_ui_v1_remove_result(
+blu2usb_ui_v1_intent_t blu2usb_ui_v1_remove_result(
     blu2usb_ui_v1_t *ui,
     const blu2usb_product_snapshot_t *product,
     bool success);
