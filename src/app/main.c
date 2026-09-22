@@ -295,6 +295,7 @@ int main(void)
 
     blu2usb_ux_init(&ux);
     blu2usb_ux_set_mouse_connected(false);
+    blu2usb_ux_begin_first_start(&ux);
     blu2usb_hid_aggregator_init(&aggregator);
     blu2usb_profiles_init(&profiles);
     (void)restore_profiles(&profiles);
