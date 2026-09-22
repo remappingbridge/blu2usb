@@ -397,18 +397,36 @@ static void connect_hid_service(void)
 
 static void service_vendor_output(void)
 {
-    if (!g_vendor_registered || g_state != BLE_HOGP_STATE_READY || g_hids_cid == 0u) return;
+    if (!g_vendor_registered) return;
+
+    uint16_t hids_cid = 0u;
+    if (g_candidate_promoted &&
+        g_candidate_state == BLE_HOGP_CANDIDATE_PROMOTED &&
+        blu2usb_ble_hogp_session_can_forward(&g_session_roles, 1u)) {
+        hids_cid = g_candidate_hids_cid;
+    } else if (!g_candidate_promoted &&
+               g_state == BLE_HOGP_STATE_READY &&
+               blu2usb_ble_hogp_session_can_forward(&g_session_roles, 0u)) {
+        hids_cid = g_hids_cid;
+    }
+
+    if (hids_cid == 0u) return;
+
     uint8_t report_id = 0u;
     uint8_t payload[BLU2USB_BLE_HOGP_VENDOR_OUTPUT_MAX] = {0};
     uint16_t payload_len = 0u;
     if (!g_vendor_backend.next_output(g_vendor_backend.context, &report_id,
         payload, &payload_len, (uint16_t)sizeof(payload))) return;
-    const bool valid = report_id != 0u && payload_len > 0u && payload_len <= sizeof(payload);
+
+    const bool valid =
+        report_id != 0u && payload_len > 0u && payload_len <= sizeof(payload);
     const uint8_t status = valid ? hids_client_send_write_report(
-        g_hids_cid, report_id, HID_REPORT_TYPE_OUTPUT, payload, (uint8_t)payload_len)
+        hids_cid, report_id, HID_REPORT_TYPE_OUTPUT,
+        payload, (uint8_t)payload_len)
         : ERROR_CODE_PARAMETER_OUT_OF_MANDATORY_RANGE;
-    g_vendor_backend.output_result(g_vendor_backend.context,
-                                   status == ERROR_CODE_SUCCESS);
+
+    g_vendor_backend.output_result(
+        g_vendor_backend.context, status == ERROR_CODE_SUCCESS);
 }
 
 static void vendor_timer_handler(btstack_timer_source_t *timer)
@@ -443,7 +461,16 @@ static void handle_gatt_client_event(uint8_t packet_type, uint16_t channel,
         }
         g_state = BLE_HOGP_STATE_READY;
         g_reconnect_after_disconnect = false;
-        if (g_vendor_registered) g_vendor_backend.session(g_vendor_backend.context, true);
+        if (g_session_roles.authoritative_slot ==
+                BLU2USB_BLE_HOGP_SESSION_SLOT_NONE) {
+            if (!blu2usb_ble_hogp_session_set_authoritative(
+                    &g_session_roles, 0u, true)) {
+                disconnect_and_rescan();
+                return;
+            }
+        }
+        if (g_vendor_registered)
+            g_vendor_backend.session(g_vendor_backend.context, true);
         if (!publish_status(BLU2USB_BLE_HOGP_MESSAGE_CONNECTED)) {
             disconnect_and_rescan(); return;
         }
@@ -455,7 +482,9 @@ static void handle_gatt_client_event(uint8_t packet_type, uint16_t channel,
             disconnect_current(g_state == BLE_HOGP_STATE_READY);
         break;
     case GATTSERVICE_SUBEVENT_HID_REPORT: {
-        if (g_state != BLE_HOGP_STATE_READY) break;
+        if (g_state != BLE_HOGP_STATE_READY ||
+            !blu2usb_ble_hogp_session_can_forward(
+                &g_session_roles, 0u)) break;
         const uint8_t report_id = gattservice_subevent_hid_report_get_report_id(packet);
         const uint8_t *raw = gattservice_subevent_hid_report_get_report(packet);
         const uint16_t raw_len = gattservice_subevent_hid_report_get_report_len(packet);
