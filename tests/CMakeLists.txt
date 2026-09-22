@@ -92,3 +92,28 @@ add_test(
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_mux02_architecture.py
             ${PROJECT_SOURCE_DIR}
 )
+
+add_executable(blu2usb_test_mux03_ui_v1 test_mux03_ui_v1.c)
+target_link_libraries(blu2usb_test_mux03_ui_v1 PRIVATE
+    blu2usb_ux_model
+    blu2usb_renderer
+    blu2usb_device_registry
+)
+add_test(NAME mux03_ui_v1_navigation COMMAND blu2usb_test_mux03_ui_v1)
+
+add_executable(blu2usb_test_mux03_projection test_mux03_projection.c)
+target_link_libraries(blu2usb_test_mux03_projection PRIVATE
+    blu2usb_ux_model
+    blu2usb_renderer
+    blu2usb_device_registry
+)
+target_compile_definitions(blu2usb_test_mux03_projection PRIVATE
+    BLU2USB_SOURCE_DIR="${PROJECT_SOURCE_DIR}"
+)
+add_test(NAME mux03_ui_v1_projection COMMAND blu2usb_test_mux03_projection)
+
+add_test(
+    NAME mux03_architecture
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_mux03_architecture.py
+            ${PROJECT_SOURCE_DIR}
+)
