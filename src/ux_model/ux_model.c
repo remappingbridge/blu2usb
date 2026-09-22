@@ -361,8 +361,11 @@ blu2usb_ux_command_t blu2usb_ux_input(blu2usb_ux_model_t *ux, blu2usb_control_t 
         if (ux->screen != BLU2USB_SCREEN_HOME) {
             const blu2usb_screen_id_t target = back_target(ux);
             if (ux->home_v062_enabled &&
-                (target == BLU2USB_SCREEN_HOME || is_v062_home(target)))
-                return enter_home_resolved(ux, true);
+                (target == BLU2USB_SCREEN_HOME || is_v062_home(target))) {
+                const bool restart_saved =
+                    ux->screen == BLU2USB_SCREEN_PAIR_MOUSE;
+                return enter_home_resolved(ux, restart_saved);
+            }
             enter(ux, target);
         }
         return cmd;
@@ -387,8 +390,6 @@ blu2usb_ux_command_t blu2usb_ux_input(blu2usb_ux_model_t *ux, blu2usb_control_t 
 
         if (selected == 1u)
             cmd.kind = BLU2USB_UX_COMMAND_PAIR_MOUSE;
-        else if (owner == BLU2USB_SCREEN_HOME_SEARCHING)
-            cmd.kind = BLU2USB_UX_COMMAND_CANCEL_SAVED_SEARCH;
         return cmd;
     }
 
@@ -570,10 +571,15 @@ void blu2usb_ux_home_mouse_connected(blu2usb_ux_model_t *ux)
         return;
     }
 
-    if (ux->home_v062_enabled &&
-        (ux->screen == BLU2USB_SCREEN_HOME_SEARCHING ||
-         ux->screen == BLU2USB_SCREEN_HOME_RETRY))
+    if (!ux->home_v062_enabled) return;
+
+    if (ux->screen == BLU2USB_SCREEN_HOME_SEARCHING ||
+        ux->screen == BLU2USB_SCREEN_HOME_RETRY) {
         enter(ux, BLU2USB_SCREEN_HOME_CONNECTED);
+    } else if (ux->screen == BLU2USB_SCREEN_HOME_SEARCHING_HELP ||
+               ux->screen == BLU2USB_SCREEN_HOME_RETRY_HELP) {
+        ux->return_screen = BLU2USB_SCREEN_HOME_CONNECTED;
+    }
 }
 
 void blu2usb_ux_home_mouse_disconnected(blu2usb_ux_model_t *ux)
@@ -585,9 +591,14 @@ void blu2usb_ux_home_mouse_disconnected(blu2usb_ux_model_t *ux)
         return;
     }
 
-    if (ux->home_v062_enabled && ux->screen == BLU2USB_SCREEN_HOME_CONNECTED) {
+    if (!ux->home_v062_enabled) return;
+
+    if (ux->screen == BLU2USB_SCREEN_HOME_CONNECTED) {
         ux->saved_search_failed = false;
         enter(ux, BLU2USB_SCREEN_HOME_SEARCHING);
+    } else if (ux->screen == BLU2USB_SCREEN_HOME_CONNECTED_HELP) {
+        ux->saved_search_failed = false;
+        ux->return_screen = BLU2USB_SCREEN_HOME_SEARCHING;
     }
 }
 
