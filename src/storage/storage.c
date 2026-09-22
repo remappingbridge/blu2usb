@@ -156,19 +156,44 @@ static bool generation_is_newer(uint32_t candidate, uint32_t reference)
     return (int32_t)(candidate - reference) > 0;
 }
 
+static bool record_generation(
+    const uint8_t record[BLU2USB_STORAGE_RECORD_SIZE],
+    uint32_t *generation)
+{
+    if (record == NULL ||
+        get_u32(&record[0]) != BLU2USB_STORAGE_MAGIC)
+        return false;
+
+    const uint16_t schema = get_u16(&record[4]);
+    const size_t stored_size = get_u16(&record[6]);
+
+    if (schema == BLU2USB_STORAGE_SCHEMA_VERSION) {
+        if (stored_size > BLU2USB_STORAGE_MAX_PAYLOAD_SIZE ||
+            get_u32(&record[BLU2USB_STORAGE_CRC_OFFSET]) !=
+                crc32(record, BLU2USB_STORAGE_CRC_OFFSET))
+            return false;
+    } else if (schema == BLU2USB_STORAGE_LEGACY_SCHEMA_VERSION) {
+        if (stored_size > BLU2USB_STORAGE_LEGACY_MAX_PAYLOAD_SIZE ||
+            get_u32(&record[BLU2USB_STORAGE_LEGACY_CRC_OFFSET]) !=
+                crc32(record, BLU2USB_STORAGE_LEGACY_CRC_OFFSET))
+            return false;
+    } else {
+        return false;
+    }
+
+    if (generation != NULL) *generation = get_u32(&record[8]);
+    return true;
+}
+
 int blu2usb_storage_select_newest(
     const uint8_t left[BLU2USB_STORAGE_RECORD_SIZE],
     const uint8_t right[BLU2USB_STORAGE_RECORD_SIZE])
 {
     uint32_t left_generation = 0u;
     uint32_t right_generation = 0u;
-    uint8_t scratch[BLU2USB_STORAGE_MAX_PAYLOAD_SIZE];
-    size_t scratch_size = 0u;
 
-    const bool left_valid = blu2usb_storage_record_decode(
-        left, &left_generation, scratch, sizeof(scratch), &scratch_size);
-    const bool right_valid = blu2usb_storage_record_decode(
-        right, &right_generation, scratch, sizeof(scratch), &scratch_size);
+    const bool left_valid = record_generation(left, &left_generation);
+    const bool right_valid = record_generation(right, &right_generation);
 
     if (!left_valid) return right_valid ? 1 : -1;
     if (!right_valid) return 0;
