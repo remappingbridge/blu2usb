@@ -105,6 +105,128 @@ static bool publish_status(blu2usb_ble_hogp_message_type_t type)
                                        (uint16_t)type, NULL, 0u);
 }
 
+static bool publish_provisional(
+    blu2usb_ble_hogp_message_type_t type,
+    uint32_t generation,
+    bd_addr_type_t address_type,
+    const bd_addr_t address)
+{
+    blu2usb_ble_hogp_provisional_event_t event;
+    memset(&event, 0, sizeof(event));
+    event.generation = generation;
+    event.peer.address_type = (uint8_t)address_type;
+    if (address != NULL)
+        memcpy(event.peer.address, address, sizeof(event.peer.address));
+    return blu2usb_bt_runtime_publish(
+        BLU2USB_BLE_HOGP_RUNTIME_CHANNEL,
+        (uint16_t)type,
+        &event,
+        (uint16_t)sizeof(event));
+}
+
+static bool address_is_bonded(const bd_addr_t address, bd_addr_type_t type)
+{
+    const int count = le_device_db_count();
+    for (int index = 0; index < count; ++index) {
+        int stored_type = 0;
+        bd_addr_t stored_address;
+        sm_key_t irk;
+        memset(stored_address, 0, sizeof(stored_address));
+        memset(irk, 0, sizeof(irk));
+        le_device_db_info(index, &stored_type, stored_address, irk);
+        if ((bd_addr_type_t)stored_type == type &&
+            memcmp(stored_address, address, sizeof(bd_addr_t)) == 0)
+            return true;
+    }
+    return false;
+}
+
+static void stop_candidate_timer(void)
+{
+    if (!g_candidate_timer_active) return;
+    (void)btstack_run_loop_remove_timer(&g_candidate_timer);
+    g_candidate_timer_active = false;
+}
+
+static void start_candidate_timer(void)
+{
+    stop_candidate_timer();
+    btstack_run_loop_set_timer(
+        &g_candidate_timer, BLE_HOGP_PAIR_NEW_TIMEOUT_MS);
+    btstack_run_loop_add_timer(&g_candidate_timer);
+    g_candidate_timer_active = true;
+}
+
+static void candidate_delete_bond_if_requested(void)
+{
+    if (!g_candidate_delete_bond) return;
+    gap_delete_bonding(g_candidate_address_type, g_candidate_address);
+    g_candidate_delete_bond = false;
+}
+
+static void candidate_clear_transport_locked(void)
+{
+    candidate_delete_bond_if_requested();
+    g_candidate_connection_handle = HCI_CON_HANDLE_INVALID;
+    g_candidate_hids_cid = 0u;
+    memset(&g_candidate_parser, 0, sizeof(g_candidate_parser));
+    memset(g_candidate_address, 0, sizeof(g_candidate_address));
+    g_candidate_address_type = BD_ADDR_TYPE_UNKNOWN;
+    if (!g_candidate_promoted)
+        g_candidate_state = BLE_HOGP_CANDIDATE_IDLE;
+}
+
+static void candidate_start_scan_locked(void)
+{
+    if (!g_session_roles.new_active || g_session_roles.commit_pending)
+        return;
+    g_candidate_state = BLE_HOGP_CANDIDATE_SCANNING;
+    gap_set_scan_parameters(0u, 48u, 48u);
+    gap_start_scan();
+}
+
+static void candidate_abort_locked(
+    blu2usb_ble_hogp_message_type_t event_type,
+    bool delete_bond)
+{
+    uint8_t slot = BLU2USB_BLE_HOGP_SESSION_SLOT_NONE;
+    const uint32_t generation = g_candidate_generation;
+    if (!blu2usb_ble_hogp_session_cancel_new(
+            &g_session_roles, generation, &slot))
+        return;
+
+    (void)slot;
+    stop_candidate_timer();
+    g_candidate_delete_bond = delete_bond;
+
+    if (g_candidate_state == BLE_HOGP_CANDIDATE_SCANNING) {
+        gap_stop_scan();
+        candidate_clear_transport_locked();
+    } else if (g_candidate_state == BLE_HOGP_CANDIDATE_CONNECTING) {
+        g_candidate_state = BLE_HOGP_CANDIDATE_DISCONNECTING;
+        if (gap_connect_cancel() != ERROR_CODE_SUCCESS)
+            candidate_clear_transport_locked();
+    } else if (g_candidate_connection_handle != HCI_CON_HANDLE_INVALID) {
+        g_candidate_state = BLE_HOGP_CANDIDATE_DISCONNECTING;
+        gap_disconnect(g_candidate_connection_handle);
+    } else {
+        candidate_clear_transport_locked();
+    }
+
+    g_candidate_generation = 0u;
+    (void)publish_provisional(
+        event_type, generation,
+        g_candidate_address_type, g_candidate_address);
+}
+
+static void candidate_timeout_handler(btstack_timer_source_t *timer)
+{
+    (void)timer;
+    g_candidate_timer_active = false;
+    candidate_abort_locked(
+        BLU2USB_BLE_HOGP_MESSAGE_PROVISIONAL_TIMEOUT, true);
+}
+
 static bool publish_runtime_mouse_event(void *context,
                                         const blu2usb_canonical_mouse_event_t *event)
 {
