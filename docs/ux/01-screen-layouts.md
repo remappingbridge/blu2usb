@@ -10,7 +10,7 @@ This is the physical firmware startup screen. It does not change the accepted G0
 
 All HAT controls are didactic only. In particular, Key B does not navigate and Key Y does not lock while no Mouse has reached the first-connected feedback screen.
 
-The entire screen background is black. `PRESS TO LEARN KEYS` and `WHILE WAIT CONNECTION` use the ordinary static yellow/off-white tone. A held HAT control turns only its own didactic label white.
+The entire screen background is dark magenta. The screen uses the compact didactic vertical geometry so its text baselines are positioned at Y = 8, 39, 64, 89, 114, 139, 164, 189 and 214 px. `PRESS TO LEARN KEYS` and `WHILE WAIT CONNECTION` use the ordinary static yellow/off-white tone. A held HAT control turns only its own didactic label white.
 
 ```text
 SEARCHING FIRST MOUSE
