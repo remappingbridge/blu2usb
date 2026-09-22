@@ -19,9 +19,7 @@
 #define BLU2USB_SDK_RESERVED_TAIL_SECTORS 2u
 #endif
 
-#define BLU2USB_PRODUCT_STORAGE_OFFSET \
-    (PICO_FLASH_SIZE_BYTES - \
-     ((BLU2USB_SDK_RESERVED_TAIL_SECTORS + BLU2USB_STORAGE_SLOT_COUNT) * FLASH_SECTOR_SIZE))
+#define BLU2USB_PRODUCT_STORAGE_OFFSET     (PICO_FLASH_SIZE_BYTES -      ((BLU2USB_SDK_RESERVED_TAIL_SECTORS + BLU2USB_STORAGE_SLOT_COUNT) * FLASH_SECTOR_SIZE))
 
 #if PICO_RP2040
 #define BLU2USB_STORAGE_READ_BASE XIP_BASE
@@ -29,16 +27,25 @@
 #define BLU2USB_STORAGE_READ_BASE XIP_NOCACHE_NOALLOC_NOTRANSLATE_BASE
 #endif
 
-_Static_assert(BLU2USB_STORAGE_RECORD_SIZE <= FLASH_PAGE_SIZE,
-               "product record must fit one flash page");
+_Static_assert(BLU2USB_STORAGE_RECORD_SIZE <= FLASH_SECTOR_SIZE,
+               "product record must fit one flash sector");
+_Static_assert((BLU2USB_STORAGE_RECORD_SIZE % FLASH_PAGE_SIZE) == 0u,
+               "product record must use whole flash pages");
 _Static_assert((BLU2USB_PRODUCT_STORAGE_OFFSET % FLASH_SECTOR_SIZE) == 0u,
                "product storage must be sector aligned");
 
 typedef struct {
     bool erase;
     uint32_t flash_offset;
-    const uint8_t *page;
+    const uint8_t *data;
+    size_t size;
 } blu2usb_storage_mutation_t;
+
+/* Keep large persistence workspaces out of the firmware stack. Storage is
+ * synchronous and single-owner in the product composition. */
+static uint8_t g_records[BLU2USB_STORAGE_SLOT_COUNT][BLU2USB_STORAGE_RECORD_SIZE];
+static uint8_t g_encoded[BLU2USB_STORAGE_RECORD_SIZE];
+static uint8_t g_scratch[BLU2USB_STORAGE_MAX_PAYLOAD_SIZE];
 
 static uint32_t slot_offset(unsigned slot)
 {
@@ -53,7 +60,8 @@ static const uint8_t *slot_address(unsigned slot)
 static bool storage_layout_is_safe(void)
 {
     extern char __flash_binary_end;
-    const uintptr_t binary_end = (uintptr_t)&__flash_binary_end - (uintptr_t)XIP_BASE;
+    const uintptr_t binary_end =
+        (uintptr_t)&__flash_binary_end - (uintptr_t)XIP_BASE;
     return binary_end <= BLU2USB_PRODUCT_STORAGE_OFFSET;
 }
 
@@ -61,88 +69,113 @@ static void perform_mutation(void *context)
 {
     const blu2usb_storage_mutation_t *mutation =
         (const blu2usb_storage_mutation_t *)context;
+
     if (mutation->erase) {
         flash_range_erase(mutation->flash_offset, FLASH_SECTOR_SIZE);
     } else {
-        flash_range_program(mutation->flash_offset, mutation->page, FLASH_PAGE_SIZE);
+        flash_range_program(
+            mutation->flash_offset, mutation->data, mutation->size);
     }
 }
 
 static bool mutate(const blu2usb_storage_mutation_t *mutation)
 {
-    return flash_safe_execute(perform_mutation, (void *)mutation, UINT32_MAX) == PICO_OK;
+    return flash_safe_execute(
+               perform_mutation, (void *)mutation, UINT32_MAX) == PICO_OK;
 }
 
-static void read_record(unsigned slot, uint8_t record[BLU2USB_STORAGE_RECORD_SIZE])
+static void read_record(
+    unsigned slot,
+    uint8_t record[BLU2USB_STORAGE_RECORD_SIZE])
 {
     memcpy(record, slot_address(slot), BLU2USB_STORAGE_RECORD_SIZE);
 }
 
-bool blu2usb_storage_load(uint8_t *payload,
-                          size_t payload_capacity,
-                          size_t *payload_size)
+static void read_all_records(void)
 {
-    if (!storage_layout_is_safe() || payload_size == NULL) return false;
+    read_record(0u, g_records[0]);
+    read_record(1u, g_records[1]);
+}
 
-    uint8_t records[BLU2USB_STORAGE_SLOT_COUNT][BLU2USB_STORAGE_RECORD_SIZE];
-    read_record(0u, records[0]);
-    read_record(1u, records[1]);
-    const int selected = blu2usb_storage_select_newest(records[0], records[1]);
-    if (selected < 0) return false;
+bool blu2usb_storage_load(
+    uint8_t *payload,
+    size_t payload_capacity,
+    size_t *payload_size)
+{
+    if (!storage_layout_is_safe() || payload_size == NULL)
+        return false;
 
-    return blu2usb_storage_record_decode(records[selected], NULL,
-                                          payload, payload_capacity, payload_size);
+    read_all_records();
+
+    const int selected =
+        blu2usb_storage_select_newest(g_records[0], g_records[1]);
+    if (selected < 0)
+        return false;
+
+    return blu2usb_storage_record_decode(
+        g_records[selected], NULL,
+        payload, payload_capacity, payload_size);
 }
 
 bool blu2usb_storage_store(const uint8_t *payload, size_t payload_size)
 {
-    if (!storage_layout_is_safe() || payload == NULL ||
-        payload_size > BLU2USB_STORAGE_MAX_PAYLOAD_SIZE) return false;
+    if (!storage_layout_is_safe() ||
+        payload == NULL ||
+        payload_size > BLU2USB_STORAGE_MAX_PAYLOAD_SIZE)
+        return false;
 
-    uint8_t records[BLU2USB_STORAGE_SLOT_COUNT][BLU2USB_STORAGE_RECORD_SIZE];
-    read_record(0u, records[0]);
-    read_record(1u, records[1]);
-    const int selected = blu2usb_storage_select_newest(records[0], records[1]);
+    read_all_records();
+
+    const int selected =
+        blu2usb_storage_select_newest(g_records[0], g_records[1]);
 
     uint32_t generation = 0u;
     if (selected >= 0) {
-        uint8_t scratch[BLU2USB_STORAGE_MAX_PAYLOAD_SIZE];
         size_t scratch_size = 0u;
-        if (!blu2usb_storage_record_decode(records[selected], &generation,
-                                            scratch, sizeof(scratch), &scratch_size))
+        if (!blu2usb_storage_record_decode(
+                g_records[selected],
+                &generation,
+                g_scratch,
+                sizeof(g_scratch),
+                &scratch_size))
             return false;
     }
+
     generation += 1u;
-
     const unsigned target = selected == 0 ? 1u : 0u;
-    uint8_t encoded[BLU2USB_STORAGE_RECORD_SIZE];
-    if (!blu2usb_storage_record_encode(generation, payload, payload_size, encoded))
-        return false;
 
-    uint8_t page[FLASH_PAGE_SIZE];
-    memset(page, 0xff, sizeof(page));
-    memcpy(page, encoded, sizeof(encoded));
+    if (!blu2usb_storage_record_encode(
+            generation, payload, payload_size, g_encoded))
+        return false;
 
     blu2usb_storage_mutation_t mutation = {
         .erase = true,
         .flash_offset = slot_offset(target),
-        .page = NULL,
+        .data = NULL,
+        .size = 0u,
     };
-    if (!mutate(&mutation)) return false;
+    if (!mutate(&mutation))
+        return false;
 
     mutation.erase = false;
-    mutation.page = page;
-    if (!mutate(&mutation)) return false;
+    mutation.data = g_encoded;
+    mutation.size = BLU2USB_STORAGE_RECORD_SIZE;
 
-    uint8_t verify[BLU2USB_STORAGE_RECORD_SIZE];
-    read_record(target, verify);
-    uint8_t verify_payload[BLU2USB_STORAGE_MAX_PAYLOAD_SIZE];
+    if (!mutate(&mutation))
+        return false;
+
+    read_record(target, g_records[target]);
+
     size_t verify_size = 0u;
     uint32_t verify_generation = 0u;
-    return blu2usb_storage_record_decode(verify, &verify_generation,
-                                         verify_payload, sizeof(verify_payload),
-                                         &verify_size) &&
+
+    return blu2usb_storage_record_decode(
+               g_records[target],
+               &verify_generation,
+               g_scratch,
+               sizeof(g_scratch),
+               &verify_size) &&
            verify_generation == generation &&
            verify_size == payload_size &&
-           memcmp(verify_payload, payload, payload_size) == 0;
+           memcmp(g_scratch, payload, payload_size) == 0;
 }
