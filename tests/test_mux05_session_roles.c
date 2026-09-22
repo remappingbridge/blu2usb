@@ -77,6 +77,33 @@ static void test_stale_generation_cannot_commit(void)
     CHECK(blu2usb_ble_hogp_session_can_forward(&roles, 0u));
 }
 
+static void test_commit_start_can_roll_back_without_losing_current(void)
+{
+    blu2usb_ble_hogp_session_roles_t roles;
+    uint8_t candidate = 0xffu;
+    uint8_t retiring = 0xffu;
+    uint32_t generation = 0u;
+
+    blu2usb_ble_hogp_session_roles_init(&roles);
+    CHECK(blu2usb_ble_hogp_session_set_authoritative(&roles, 0u, true));
+    CHECK(blu2usb_ble_hogp_session_start_new(
+        &roles, &candidate, &generation));
+    CHECK(blu2usb_ble_hogp_session_candidate_ready(
+        &roles, candidate, generation));
+    CHECK(blu2usb_ble_hogp_session_begin_commit(
+        &roles, generation, &retiring));
+
+    CHECK(!blu2usb_ble_hogp_session_can_forward(&roles, 0u));
+    CHECK(blu2usb_ble_hogp_session_abort_commit(
+        &roles, generation));
+    CHECK(blu2usb_ble_hogp_session_can_forward(&roles, 0u));
+    CHECK(roles.authoritative_slot == 0u);
+    CHECK(roles.roles[candidate] == BLU2USB_BLE_HOGP_ROLE_PROVISIONAL);
+    CHECK(roles.ready[candidate]);
+    CHECK(roles.new_active);
+    CHECK(!roles.commit_pending);
+}
+
 static void test_ordered_handoff_and_old_late_disconnect(void)
 {
     blu2usb_ble_hogp_session_roles_t roles;
@@ -133,6 +160,7 @@ int main(void)
     test_candidate_never_forwards_before_promotion();
     test_cancel_invalidates_candidate_only();
     test_stale_generation_cannot_commit();
+    test_commit_start_can_roll_back_without_losing_current();
     test_ordered_handoff_and_old_late_disconnect();
     test_candidate_disconnect_preserves_current();
 
