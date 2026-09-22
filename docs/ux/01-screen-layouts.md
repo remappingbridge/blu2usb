@@ -49,6 +49,125 @@ FIRST MOUSE CONNECTED
 After Key Y locks, the first complete HAT interaction unlocks the display, is consumed, and opens the existing v0.6 HOME with selection zero. From that point onward the original v0.6 HOME/navigation behavior owns the session.
 
 
+## v0.6.2 — HOME resolver
+
+After the v0.6.1 first-start flow completes, firmware no longer enters the legacy `HOME` page. It resolves one of these states:
+
+- live Mouse -> `HOME CONNECTED`;
+- saved/bonded Mouse with no live connection -> `HOME SEARCHING`;
+- saved search expired or was canceled -> `HOME RETRY`.
+
+The v0.6 product still has one G06 Mouse bond/runtime session rather than the later multi-Mouse registry. Therefore the connected title is the generic `MOUSE` in this point release; persistent Mouse-name projection is intentionally deferred.
+
+The inherited G06 bonded reconnect timeout is exactly 8 seconds. In HOME mode, expiry stops at retry and does not fall through into the open first-device scan.
+
+### HOME SEARCHING
+
+```text
+SEARCHING SAVED MOUSE
+ SAVED DEVICES
+ PAIR NEW MOUSE
+ LEARN THE KEYS
+
+KEY B: CANCEL SEARCH
+JOY UP / DOWN: SELECT
+JOY PRESS: ACCESS
+KEY X: HELP
+```
+
+Key B cancels only the current saved reconnect attempt and opens HOME RETRY. Key X cancels that attempt before opening Help. Up/Down wraps over the three options. Saved Devices and Learn may be visited while the reconnect attempt continues. Pair Mouse leaves the HOME-owned saved search before opening the inherited v0.6 Pair Mouse page.
+
+### HOME RETRY
+
+```text
+DEVICE NOT FOUND
+ SAVED DEVICES
+ PAIR NEW MOUSE
+ LEARN THE KEYS
+
+KEY A: RETRY SEARCH
+JOY UP / DOWN: SELECT
+JOY PRESS: ACCESS
+KEY X: HELP
+```
+
+Key A starts another 8-second bonded reconnect attempt and immediately returns to HOME SEARCHING.
+
+### HOME CONNECTED
+
+```text
+MOUSE
+ PASSTHROUGH
+ SAVED DEVICES
+ PAIR NEW MOUSE
+ LEARN THE KEYS
+
+JOY UP / DOWN: SELECT
+JOY PRESS: ACCESS
+KEY X: HELP TO REMOVE
+```
+
+Row 1 is dynamic and reflects only the confirmed active G06 profile:
+
+- ` PASSTHROUGH`;
+- ` REMAPPED TO STANDARD`;
+- ` REMAPPED TO ESCAPE`;
+- ` REMAPPED TO CUSTOM`.
+
+The four selectable rows are all ordinary actionable gray; the selected row becomes white. HOME does not use cyan as a profile-status indicator.
+
+Selecting the remap summary opens the inherited `MOUSE OPTIONS`. Saved Devices opens the inherited Saved Devices page. Pair New Mouse opens the inherited Pair Mouse page. Learn the Keys opens the inherited learn page.
+
+### HOME Help pages
+
+```text
+HOME SEARCHING HELP
+THE MATCHING ATTEMPT
+TOOK PLACE ONLY FOR
+DEVICES ALREADY SAVED
+IN THE PREFERENCES,
+BUT NOT FOR DEVICES
+THAT WERE NOT SAVED.
+
+ANY KEY: BACK
+```
+
+```text
+HOME RETRY HELP
+THE MATCHING ATTEMPT
+TOOK PLACE ONLY FOR
+DEVICES ALREADY SAVED
+IN THE PREFERENCES,
+BUT NOT FOR DEVICES
+THAT WERE NOT SAVED.
+
+ANY KEY: BACK
+```
+
+```text
+REMOVE CONNECTED HELP
+TO DISCONNECT THE
+CURRENTLY CONNECTED
+MOUSE NAVIGATE TO:
+STEP 1. SAVED DEVICES
+STEP 2. REMOVE DEVICE
+STEP 3. KEY A: REMOVE
+
+ANY KEY: BACK
+```
+
+Opening HOME SEARCHING Help cancels the screen-owned reconnect attempt and returns to HOME RETRY.
+
+### Disconnect and return-to-HOME rules
+
+If the Mouse disconnects while HOME CONNECTED is visible, HOME changes immediately to HOME SEARCHING while the G06 bond reconnect begins.
+
+If disconnect occurs on an internal v0.6 page, that page remains visible. Returning to HOME projects the actual saved-search state: SEARCHING if the 8-second attempt is still running, RETRY if it already expired, or CONNECTED if reconnection succeeded.
+
+Lock/unlock always resolves HOME from current connection truth. If a saved Mouse is disconnected, unlock starts a fresh saved reconnect attempt.
+
+> Scope note: v0.6.2 replaces HOME only. The downstream Pair Mouse/Saved Devices/remapper pages are still the inherited v0.6 implementations and can be replaced incrementally in later point releases.
+
 ## HOME
 
 Hidden: Joy Up/Down Select; Key B Back (no-op because HOME is first); Key Y Lock.
