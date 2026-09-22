@@ -1,0 +1,270 @@
+searching-first|0|SEARCHING FIRST MOUSE
+searching-first|1|PRESS TO LEARN KEYS
+searching-first|2|WHILE WAIT CONNECTION
+searching-first|3|       JOY UP
+searching-first|4|  JOY    JOY    JOY
+searching-first|5|  LEFT  PRESS  RIGHT
+searching-first|6|      JOY DOWN
+searching-first|7| KEY A         KEY X
+searching-first|8| KEY B         KEY Y
+first-mouse-connected|0|FIRST MOUSE CONNECTED
+first-mouse-connected|1|       JOY UP
+first-mouse-connected|2|  JOY    JOY    JOY
+first-mouse-connected|3|  LEFT  PRESS  RIGHT
+first-mouse-connected|4|      JOY DOWN
+first-mouse-connected|5| KEY A         KEY X
+first-mouse-connected|6| KEY B         KEY Y
+first-mouse-connected|7|
+first-mouse-connected|8| KEY Y: LOCK
+home-searching|0|SEARCHING SAVED MOUSE
+home-searching|1| SAVED DEVICES
+home-searching|2| PAIR NEW MOUSE
+home-searching|3| LEARN THE KEYS
+home-searching|4|
+home-searching|5|KEY B: CANCEL SEARCH
+home-searching|6|JOY UP / DOWN: SELECT
+home-searching|7|JOY PRESS: ACCESS
+home-searching|8|KEY X: HELP
+home-searching-help|0|HOME SEARCHING HELP
+home-searching-help|1|THE MATCHING ATTEMPT
+home-searching-help|2|TOOK PLACE ONLY FOR
+home-searching-help|3|DEVICES ALREADY SAVED
+home-searching-help|4|IN THE PREFERENCES,
+home-searching-help|5|BUT NOT FOR DEVICES
+home-searching-help|6|THAT WERE NOT SAVED.
+home-searching-help|7|
+home-searching-help|8|ANY KEY: BACK
+home-retry|0|DEVICE NOT FOUND
+home-retry|1| SAVED DEVICES
+home-retry|2| PAIR NEW MOUSE
+home-retry|3| LEARN THE KEYS
+home-retry|4|
+home-retry|5|KEY A: RETRY SEARCH
+home-retry|6|JOY UP / DOWN: SELECT
+home-retry|7|JOY PRESS: ACCESS
+home-retry|8|KEY X: HELP
+home-retry-help|0|HOME RETRY HELP
+home-retry-help|1|THE MATCHING ATTEMPT
+home-retry-help|2|TOOK PLACE ONLY FOR
+home-retry-help|3|DEVICES ALREADY SAVED
+home-retry-help|4|IN THE PREFERENCES,
+home-retry-help|5|BUT NOT FOR DEVICES
+home-retry-help|6|THAT WERE NOT SAVED.
+home-retry-help|7|
+home-retry-help|8|ANY KEY: BACK
+pair-new|0|PAIR NEW MOUSE
+pair-new|1|TRYING TO CONNECT
+pair-new|2|A NEW MOUSE THAT
+pair-new|3|IS NOT LISTED
+pair-new|4|IN SAVED DEVICES
+pair-new|5|
+pair-new|6|KEY B: CANCEL
+pair-new|7|KEY X: HELP
+pair-new|8|KEY Y: LOCK
+help-pair-new|0|PAIR NEW DEVICE HELP
+help-pair-new|1|TO CONNECT A SAVED
+help-pair-new|2|DEVICE FIRST UNPLUG
+help-pair-new|3|CURRENTLY CONNECTED
+help-pair-new|4|MOUSE AND PRESS THE
+help-pair-new|5|KEY B TO BACK UNTIL
+help-pair-new|6|SEARCHING APPEARS.
+help-pair-new|7|
+help-pair-new|8|ANY KEY: BACK
+retry-pair-new|0|PAIR NEW MOUSE
+retry-pair-new|1|NO NEW MOUSE OUTSIDE
+retry-pair-new|2|THE LIST OF SAVED
+retry-pair-new|3|DEVICES WAS FOUND
+retry-pair-new|4|
+retry-pair-new|5|KEY A: RETRY NEW PAIR
+retry-pair-new|6|KEY B: BACK TRY SAVED
+retry-pair-new|7|KEY X: HELP
+retry-pair-new|8|KEY Y: LOCK
+help-retry-pair-new|0|DEVICE NOT FOUND HELP
+help-retry-pair-new|1|TO CONNECT A SAVED
+help-retry-pair-new|2|DEVICE FIRST UNPLUG
+help-retry-pair-new|3|CURRENTLY CONNECTED
+help-retry-pair-new|4|MOUSE AND PRESS THE
+help-retry-pair-new|5|KEY B TO BACK UNTIL
+help-retry-pair-new|6|SEARCHING APPEARS.
+help-retry-pair-new|7|
+help-retry-pair-new|8|ANY KEY: BACK
+home-connected|0|LIFT MOUSE
+home-connected|1| REMAPPED TO ESCAPE
+home-connected|2| SAVED DEVICES
+home-connected|3| PAIR NEW MOUSE
+home-connected|4| LEARN THE KEYS
+home-connected|5|
+home-connected|6|JOY UP / DOWN: SELECT
+home-connected|7|JOY PRESS: ACCESS
+home-connected|8|KEY X: HELP TO REMOVE
+help-home-connected|0|REMOVE CONNECTED HELP
+help-home-connected|1|TO DISCONNECT THE
+help-home-connected|2|CURRENTLY CONNECTED
+help-home-connected|3|MOUSE NAVIGATE TO:
+help-home-connected|4|STEP 1. SAVED DEVICES
+help-home-connected|5|STEP 2. REMOVE DEVICE
+help-home-connected|6|STEP 3. KEY A: REMOVE
+help-home-connected|7|
+help-home-connected|8|ANY KEY: BACK
+remapper-options|0|MOUSE OPTIONS
+remapper-options|1| PASSTHROUGH
+remapper-options|2| STANDARD REMAP
+remapper-options|3| ESCAPE REMAP
+remapper-options|4| CUSTOM REMAP
+remapper-options|5|
+remapper-options|6|JOY PRESS: ACCESS
+remapper-options|7|KEY B: BACK
+remapper-options|8|KEY X: HELP
+help-remapper-options|0|REMAPPER OPTIONS HELP
+help-remapper-options|1|CHOOSE FROM THE
+help-remapper-options|2|OPTIONS TO CHANGE THE
+help-remapper-options|3|FUNCTIONS OF THE
+help-remapper-options|4|MOUSE BUTTONS.
+help-remapper-options|5|PASSTHROUGH IS THE
+help-remapper-options|6|DEFAULT OPTION.
+help-remapper-options|7|
+help-remapper-options|8|ANY KEY: BACK
+passthrough-active|0|PASSTHROUGH ACTIVE
+passthrough-active|1|ORIGINAL MOUSE
+passthrough-active|2|BUTTONS POSITION
+passthrough-active|3|ARE ACTIVE NOW
+passthrough-active|4|
+passthrough-active|5|
+passthrough-active|6|
+passthrough-active|7|KEY B: BACK
+passthrough-active|8|KEY Y: LOCK
+passthrough-not-active|0|APPLY PASSTHROUGH
+passthrough-not-active|1|ORIGINAL MOUSE
+passthrough-not-active|2|BUTTONS POSITION
+passthrough-not-active|3|ARE NOT ACTIVE
+passthrough-not-active|4|
+passthrough-not-active|5|
+passthrough-not-active|6|KEY A: APPLY
+passthrough-not-active|7|KEY B: CANCEL
+passthrough-not-active|8|KEY Y: LOCK
+standard-not-active|0|APPLY STANDARD REMAP
+standard-not-active|1|FORWARD IS LEFT
+standard-not-active|2|LEFT IS FORWARD
+standard-not-active|3|BACKWARD IS RIGHT
+standard-not-active|4|RIGHT IS BACKWARD
+standard-not-active|5|
+standard-not-active|6|KEY A: APPLY
+standard-not-active|7|KEY B: CANCEL
+standard-not-active|8|KEY Y: LOCK
+standard-active|0|STANDARD REMAP ACTIVE
+standard-active|1|FORWARD IS LEFT
+standard-active|2|LEFT IS FORWARD
+standard-active|3|BACKWARD IS RIGHT
+standard-active|4|RIGHT IS BACKWARD
+standard-active|5|
+standard-active|6|
+standard-active|7|KEY B: BACK
+standard-active|8|KEY Y: LOCK
+escape-not-active|0|APPLY ESCAPE REMAP
+escape-not-active|1|FORWARD IS LEFT
+escape-not-active|2|BACKWARD IS RIGHT
+escape-not-active|3|LEFT IS ESCAPE
+escape-not-active|4|RIGHT IS BACKWARD
+escape-not-active|5|MIDDLE IS FORWARD
+escape-not-active|6|
+escape-not-active|7|KEY A: APPLY
+escape-not-active|8|KEY B: CANCEL
+escape-active|0|ESCAPE APPLIED ACTIVE
+escape-active|1|FORWARD IS LEFT
+escape-active|2|BACKWARD IS RIGHT
+escape-active|3|LEFT IS ESCAPE
+escape-active|4|RIGHT IS BACKWARD
+escape-active|5|MIDDLE IS FORWARD
+escape-active|6|
+escape-active|7|KEY B: BACK
+escape-active|8|KEY Y: LOCK
+custom-edit|0|EDIT CUSTOM REMAP
+custom-edit|1| LEFT IS LEFT
+custom-edit|2| RIGHT IS RIGHT
+custom-edit|3| MIDDLE IS MIDDLE
+custom-edit|4| FORWARD IS FORWARD
+custom-edit|5| BACKWARD IS BACKWARD
+custom-edit|6|
+custom-edit|7|JOY PRESS: ACCESS
+custom-edit|8|KEY A: APPLY CUSTOM
+left|0|LEFT WILL BECOME
+left|1| LEFT
+left|2| RIGHT
+left|3| MIDDLE
+left|4| ESCAPE
+left|5| FORWARD
+left|6| BACKWARD
+left|7|
+left|8|KEY A: APPLY AND BACK
+right|0|RIGHT WILL BECOME
+right|1| LEFT
+right|2| RIGHT
+right|3| MIDDLE
+right|4| ESCAPE
+right|5| FORWARD
+right|6| BACKWARD
+right|7|
+right|8|KEY A: APPLY AND BACK
+middle|0|MIDDLE WILL BECOME
+middle|1| LEFT
+middle|2| RIGHT
+middle|3| MIDDLE
+middle|4| ESCAPE
+middle|5| FORWARD
+middle|6| BACKWARD
+middle|7|
+middle|8|KEY A: APPLY AND BACK
+forward|0|FORWARD WILL BECOME
+forward|1| LEFT
+forward|2| RIGHT
+forward|3| MIDDLE
+forward|4| ESCAPE
+forward|5| FORWARD
+forward|6| BACKWARD
+forward|7|
+forward|8|KEY A: APPLY AND BACK
+backward|0|BACKWARD WILL BECOME
+backward|1| LEFT
+backward|2| RIGHT
+backward|3| MIDDLE
+backward|4| ESCAPE
+backward|5| FORWARD
+backward|6| BACKWARD
+backward|7|
+backward|8|KEY A: APPLY AND BACK
+saved-devices|0|2 OF 2
+saved-devices|1|OFFICE MOUSE
+saved-devices|2|STATUS: DISCONNECTED
+saved-devices|3|PROFILE: STANDARD
+saved-devices|4| REMOVE DEVICE
+saved-devices|5|
+saved-devices|6|JOY RIGHT\LEFT: PAGE
+saved-devices|7|JOY PRESS: ACCESS
+saved-devices|8|KEY B: BACK
+remove-this|0|REMOVE THIS MOUSE
+remove-this|1|OFFICE MOUSE
+remove-this|2|
+remove-this|3|PAIRING AND MAPPINGS
+remove-this|4|WILL BE DELETED
+remove-this|5|
+remove-this|6|KEY A: REMOVE
+remove-this|7|KEY B: CANCEL
+remove-this|8|KEY X: HELP
+help-remove-this|0|REMOVE MOUSE HELP
+help-remove-this|1|COMPLETELY REMOVE THE
+help-remove-this|2|AUTOMATIC CONNECTION
+help-remove-this|3|WHEN TURNING ON THE
+help-remove-this|4|DEVICE AND DELETE ITS
+help-remove-this|5|BUTTON REMAPPING
+help-remove-this|6|PROFILE.
+help-remove-this|7|
+help-remove-this|8|ANY KEY: BACK
+learn-the-keys|0|PRESS TO LEARN KEYS
+learn-the-keys|1|       JOY UP
+learn-the-keys|2|  JOY    JOY    JOY
+learn-the-keys|3|  LEFT  PRESS  RIGHT
+learn-the-keys|4|      JOY DOWN
+learn-the-keys|5| KEY A         KEY X
+learn-the-keys|6| KEY B         KEY Y
+learn-the-keys|7|
+learn-the-keys|8| KEY Y: LOCK
