@@ -1,6 +1,6 @@
 # MUX-02 validation — host-pure connection coordinator
 
-Status: **IMPLEMENTED — HUMAN ACCEPTANCE PENDING**
+Status: **ACCEPTED**
 
 Branch: `gate/mux-02-connection-coordinator`
 
@@ -230,3 +230,6 @@ That physical risk is intentionally isolated in **MUX-05**.
 The final branch head must pass canonical CI after this evidence/checklist update.
 
 Human acceptance is required before MUX-03 branches from the exact accepted MUX-02 SHA.
+
+
+Human acceptance recorded on 2026-09-22. MUX-03 must branch from this accepted head.
