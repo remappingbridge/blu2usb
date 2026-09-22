@@ -261,7 +261,9 @@ void blu2usb_ui_project(const blu2usb_ux_model_t *ux, blu2usb_ui_frame_t *frame)
             : learn
                 ? BLU2USB_RENDERER_TEXT_ROWS
                 : first_hint_row(screen);
-    blu2usb_ui_frame_reset(frame, learn, hint);
+    /* SEARCHING FIRST MOUSE is a full didactic field: the whole LCD uses
+     * the dark-magenta background and compact didactic Y positions. */
+    blu2usb_ui_frame_reset(frame, learn || searching_first, hint);
 
     for (uint8_t row = 0; row < BLU2USB_RENDERER_TEXT_ROWS; ++row) {
         const char *text = screen->rows[row] != NULL ? screen->rows[row] : "";
