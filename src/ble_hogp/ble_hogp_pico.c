@@ -23,6 +23,7 @@ typedef enum {
     BLE_HOGP_STATE_CONNECTING_HIDS,
     BLE_HOGP_STATE_READY,
     BLE_HOGP_STATE_DISCONNECTING,
+    BLE_HOGP_STATE_IDLE,
 } ble_hogp_state_t;
 
 typedef struct {
@@ -47,6 +48,11 @@ static btstack_timer_source_t g_reconnect_timer;
 static bool g_reconnect_timer_active;
 static bool g_reconnect_cancel_pending;
 static bool g_reconnect_after_disconnect;
+static bool g_saved_search_mode;
+static bool g_saved_timeout_pending;
+static bool g_idle_after_disconnect;
+static volatile bool g_request_retry_saved_search;
+static volatile bool g_request_cancel_saved_search;
 static blu2usb_ble_hogp_vendor_backend_t g_vendor_backend;
 static bool g_vendor_registered;
 
@@ -157,6 +163,16 @@ static void start_scan(void)
     gap_start_scan();
 }
 
+static void finish_saved_search(bool timed_out)
+{
+    stop_reconnect_timer();
+    g_reconnect_cancel_pending = false;
+    g_saved_timeout_pending = false;
+    g_state = BLE_HOGP_STATE_IDLE;
+    if (timed_out)
+        (void)publish_status(BLU2USB_BLE_HOGP_MESSAGE_SAVED_SEARCH_TIMEOUT);
+}
+
 static void reconnect_timeout_handler(btstack_timer_source_t *timer)
 {
     (void)timer;
@@ -164,7 +180,11 @@ static void reconnect_timeout_handler(btstack_timer_source_t *timer)
     if (g_state != BLE_HOGP_STATE_CONNECTING) return;
 
     g_reconnect_cancel_pending = true;
-    if (gap_connect_cancel() != ERROR_CODE_SUCCESS) start_scan();
+    g_saved_timeout_pending = g_saved_search_mode;
+    if (gap_connect_cancel() != ERROR_CODE_SUCCESS) {
+        if (g_saved_search_mode) finish_saved_search(true);
+        else start_scan();
+    }
 }
 
 static bool start_bonded_reconnect(void)
@@ -206,7 +226,12 @@ static bool start_bonded_reconnect(void)
 
 static void reconnect_or_scan(void)
 {
-    if (!start_bonded_reconnect()) start_scan();
+    if (start_bonded_reconnect()) return;
+    if (g_saved_search_mode) {
+        finish_saved_search(true);
+        return;
+    }
+    start_scan();
 }
 
 static void disconnect_current(bool reconnect_bonded)
@@ -256,9 +281,42 @@ static void service_vendor_output(void)
                                    status == ERROR_CODE_SUCCESS);
 }
 
+static void service_saved_search_requests(void)
+{
+    if (g_request_cancel_saved_search) {
+        g_request_cancel_saved_search = false;
+        stop_reconnect_timer();
+        g_saved_timeout_pending = false;
+
+        if (g_state == BLE_HOGP_STATE_CONNECTING) {
+            g_reconnect_cancel_pending = true;
+            if (gap_connect_cancel() != ERROR_CODE_SUCCESS)
+                finish_saved_search(false);
+        } else if (g_state == BLE_HOGP_STATE_SECURING ||
+                   g_state == BLE_HOGP_STATE_CONNECTING_HIDS) {
+            g_idle_after_disconnect = true;
+            g_state = BLE_HOGP_STATE_DISCONNECTING;
+            if (g_connection_handle != HCI_CON_HANDLE_INVALID)
+                gap_disconnect(g_connection_handle);
+            else
+                finish_saved_search(false);
+        } else if (g_state != BLE_HOGP_STATE_READY) {
+            finish_saved_search(false);
+        }
+    }
+
+    if (g_request_retry_saved_search) {
+        g_request_retry_saved_search = false;
+        if (g_saved_search_mode && g_state == BLE_HOGP_STATE_IDLE &&
+            !start_bonded_reconnect())
+            finish_saved_search(true);
+    }
+}
+
 static void vendor_timer_handler(btstack_timer_source_t *timer)
 {
     (void)timer;
+    service_saved_search_requests();
     service_vendor_output();
     btstack_run_loop_set_timer(&g_vendor_timer, BLE_HOGP_VENDOR_SERVICE_MS);
     btstack_run_loop_add_timer(&g_vendor_timer);
@@ -360,10 +418,32 @@ static void hci_packet_handler(uint8_t packet_type, uint16_t channel,
             g_state == BLE_HOGP_STATE_CONNECTING) {
             stop_reconnect_timer();
             const uint8_t status = gap_subevent_le_connection_complete_get_status(packet);
+
+            if (g_reconnect_cancel_pending && g_saved_search_mode) {
+                const bool timed_out = g_saved_timeout_pending;
+                g_reconnect_cancel_pending = false;
+                g_saved_timeout_pending = false;
+
+                if (status == ERROR_CODE_SUCCESS) {
+                    g_connection_handle =
+                        gap_subevent_le_connection_complete_get_connection_handle(packet);
+                    g_idle_after_disconnect = true;
+                    g_state = BLE_HOGP_STATE_DISCONNECTING;
+                    gap_disconnect(g_connection_handle);
+                    if (timed_out)
+                        (void)publish_status(BLU2USB_BLE_HOGP_MESSAGE_SAVED_SEARCH_TIMEOUT);
+                } else {
+                    g_connection_handle = HCI_CON_HANDLE_INVALID;
+                    finish_saved_search(timed_out);
+                }
+                break;
+            }
+
             if (status != ERROR_CODE_SUCCESS) {
                 g_connection_handle = HCI_CON_HANDLE_INVALID;
                 g_reconnect_cancel_pending = false;
-                start_scan();
+                if (g_saved_search_mode) finish_saved_search(true);
+                else start_scan();
                 break;
             }
             g_reconnect_cancel_pending = false;
@@ -381,8 +461,17 @@ static void hci_packet_handler(uint8_t packet_type, uint16_t channel,
         g_hids_cid = 0u;
         memset(&g_parser, 0, sizeof(g_parser));
         if (was_ready) (void)publish_status(BLU2USB_BLE_HOGP_MESSAGE_DISCONNECTED);
+
+        if (g_idle_after_disconnect) {
+            g_idle_after_disconnect = false;
+            g_reconnect_after_disconnect = false;
+            finish_saved_search(false);
+            break;
+        }
+
         g_reconnect_after_disconnect = false;
         if (reconnect_bonded) reconnect_or_scan();
+        else if (g_saved_search_mode) finish_saved_search(false);
         else start_scan();
         break;
     }
@@ -427,6 +516,11 @@ static void ble_hogp_session_setup(void)
     g_reconnect_timer_active = false;
     g_reconnect_cancel_pending = false;
     g_reconnect_after_disconnect = false;
+    g_saved_search_mode = false;
+    g_saved_timeout_pending = false;
+    g_idle_after_disconnect = false;
+    g_request_retry_saved_search = false;
+    g_request_cancel_saved_search = false;
     hids_client_init(g_descriptor_storage, sizeof(g_descriptor_storage));
     g_hci_registration.callback = &hci_packet_handler;
     hci_add_event_handler(&g_hci_registration);
@@ -441,4 +535,22 @@ static void ble_hogp_session_setup(void)
 bool blu2usb_ble_hogp_start(void)
 {
     return blu2usb_bt_runtime_start(ble_hogp_session_setup);
+}
+
+void blu2usb_ble_hogp_set_saved_search_mode(bool enabled)
+{
+    g_saved_search_mode = enabled;
+}
+
+bool blu2usb_ble_hogp_retry_saved_search(void)
+{
+    if (!g_saved_search_mode) return false;
+    g_request_retry_saved_search = true;
+    return true;
+}
+
+void blu2usb_ble_hogp_cancel_saved_search(void)
+{
+    if (!g_saved_search_mode) return;
+    g_request_cancel_saved_search = true;
 }
