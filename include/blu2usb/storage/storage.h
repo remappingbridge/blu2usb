@@ -5,8 +5,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define BLU2USB_STORAGE_MAX_PAYLOAD_SIZE 64u
-#define BLU2USB_STORAGE_RECORD_SIZE 80u
+#define BLU2USB_STORAGE_MAX_PAYLOAD_SIZE 768u
+#define BLU2USB_STORAGE_RECORD_SIZE 784u
 
 bool blu2usb_storage_record_encode(
     uint32_t generation,

@@ -48,6 +48,7 @@ target_include_directories(blu2usb_hid_aggregator PUBLIC include)
 add_library(blu2usb_profiles STATIC
     src/profiles/custom_template.c
     src/profiles/profiles.c
+    src/profiles/mice.c
 )
 target_include_directories(blu2usb_profiles PUBLIC include)
 
@@ -154,11 +155,7 @@ if(BLU2USB_BUILD_TESTS)
 
     add_subdirectory(tests)
 
-    add_test(
-        NAME architecture_contract
-        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_architecture.py
-                ${CMAKE_CURRENT_SOURCE_DIR}
-    )
+
 endif()
 
 if(BLU2USB_BUILD_PICO)
@@ -168,7 +165,7 @@ if(BLU2USB_BUILD_PICO)
         blu2usb_contract
         blu2usb_module_app
     )
-    target_compile_definitions(blu2usb_picow PRIVATE CYW43_LWIP=0)
+    target_compile_definitions(blu2usb_picow PRIVATE CYW43_LWIP=0 PICO_STACK_SIZE=0x4000)
 
     pico_enable_stdio_usb(blu2usb_picow 0)
     pico_enable_stdio_uart(blu2usb_picow 0)

@@ -59,7 +59,7 @@ void blu2usb_ux_profile_applied(blu2usb_ux_model_t *ux,
         break;
     case BLU2USB_MOUSE_PROFILE_CUSTOM_REMAP:
         ux->custom_dirty = false;
-        ux->screen = BLU2USB_SCREEN_CUSTOM_APPLIED;
+        ux->screen = BLU2USB_SCREEN_EDIT_CUSTOM;
         break;
     default:
         break;

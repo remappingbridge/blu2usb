@@ -50,6 +50,7 @@ typedef struct {
     size_t report_count;
     uint8_t aggregate_buttons;
     bool configured;
+    bool contains_keyboard;
 } blu2usb_ble_hogp_parser_t;
 
 typedef bool (*blu2usb_ble_hogp_emit_fn)(void *context,
@@ -114,6 +115,15 @@ bool blu2usb_ble_hogp_decode_runtime_message(const blu2usb_bt_runtime_message_t 
                                               blu2usb_ble_hogp_event_t *event);
 bool blu2usb_ble_hogp_register_vendor_backend(
     const blu2usb_ble_hogp_vendor_backend_t *backend);
+/* Native G06 radio controls. One authoritative session, one provisional candidate. */
+typedef enum { BLU2USB_SEARCH_NONE, BLU2USB_SEARCH_FIRST, BLU2USB_SEARCH_SAVED, BLU2USB_SEARCH_NEW } blu2usb_search_t;
+typedef struct { int live_bond, candidate_bond; bool candidate_ready, searching, expired; char candidate_name[32]; } blu2usb_ble_status_t;
+void blu2usb_ble_hogp_search(blu2usb_search_t mode, uint16_t saved_mask);
+void blu2usb_ble_hogp_status(blu2usb_ble_status_t *out);
+bool blu2usb_ble_hogp_accept(int bond);
+void blu2usb_ble_hogp_disconnect(int bond);
+void blu2usb_ble_hogp_forget(int bond);
+uint16_t blu2usb_ble_hogp_bond_mask(void);
 bool blu2usb_ble_hogp_start(void);
 
 #endif

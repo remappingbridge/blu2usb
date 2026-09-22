@@ -29,8 +29,8 @@
 #define BLU2USB_STORAGE_READ_BASE XIP_NOCACHE_NOALLOC_NOTRANSLATE_BASE
 #endif
 
-_Static_assert(BLU2USB_STORAGE_RECORD_SIZE <= FLASH_PAGE_SIZE,
-               "product record must fit one flash page");
+_Static_assert(BLU2USB_STORAGE_RECORD_SIZE <= FLASH_SECTOR_SIZE,
+               "product record must fit one flash sector");
 _Static_assert((BLU2USB_PRODUCT_STORAGE_OFFSET % FLASH_SECTOR_SIZE) == 0u,
                "product storage must be sector aligned");
 
@@ -64,7 +64,7 @@ static void perform_mutation(void *context)
     if (mutation->erase) {
         flash_range_erase(mutation->flash_offset, FLASH_SECTOR_SIZE);
     } else {
-        flash_range_program(mutation->flash_offset, mutation->page, FLASH_PAGE_SIZE);
+        flash_range_program(mutation->flash_offset, mutation->page, ((BLU2USB_STORAGE_RECORD_SIZE + FLASH_PAGE_SIZE - 1) / FLASH_PAGE_SIZE) * FLASH_PAGE_SIZE);
     }
 }
 
@@ -119,7 +119,7 @@ bool blu2usb_storage_store(const uint8_t *payload, size_t payload_size)
     if (!blu2usb_storage_record_encode(generation, payload, payload_size, encoded))
         return false;
 
-    uint8_t page[FLASH_PAGE_SIZE];
+    uint8_t page[((BLU2USB_STORAGE_RECORD_SIZE + FLASH_PAGE_SIZE - 1) / FLASH_PAGE_SIZE) * FLASH_PAGE_SIZE];
     memset(page, 0xff, sizeof(page));
     memcpy(page, encoded, sizeof(encoded));
 

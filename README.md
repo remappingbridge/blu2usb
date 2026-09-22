@@ -1,3 +1,5 @@
+> **Experimental G06 + mouse UX v1.0 branch.** See [implementation and physical tests](docs/experimental/g06-mouse-ux-v1.md). The historical G06 documents below describe the baseline; the experiment replaces its screens and supports only Bluetooth mice. Hardware validation is pending.
+
 # blu2usb-picow
 
 Firmware plug-and-play para Raspberry Pi Pico 2 W que recebe dispositivos HID Bluetooth e expõe uma identidade USB HID estável ao host, sem software no sistema operacional.

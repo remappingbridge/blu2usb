@@ -9,41 +9,35 @@
 #include "blu2usb/interaction/interaction.h"
 
 typedef enum {
-    BLU2USB_SCREEN_HOME = 0,
-    BLU2USB_SCREEN_MOUSE_STATUS,
-    BLU2USB_SCREEN_OTHER_DEVICES_STATUS,
-    BLU2USB_SCREEN_MOUSE_HELP,
-    BLU2USB_SCREEN_DEVICES_HELP,
-    BLU2USB_SCREEN_MOUSE_OPTIONS,
+    BLU2USB_SCREEN_SEARCHING_FIRST,
+    BLU2USB_SCREEN_MOUSE_SAVED,
+    BLU2USB_SCREEN_HOME_SEARCHING,
+    BLU2USB_SCREEN_HOME_SEARCHING_HELP,
+    BLU2USB_SCREEN_HOME_RETRY,
+    BLU2USB_SCREEN_HOME_RETRY_HELP,
     BLU2USB_SCREEN_PAIR_MOUSE,
     BLU2USB_SCREEN_PAIR_MOUSE_HELP,
-    BLU2USB_SCREEN_MOUSE_SAVED,
-    BLU2USB_SCREEN_APPLY_PASSTHROUGH,
+    BLU2USB_SCREEN_RETRY_PAIR_NEW,
+    BLU2USB_SCREEN_HELP_RETRY_PAIR_NEW,
+    BLU2USB_SCREEN_HOME,
+    BLU2USB_SCREEN_HELP_HOME_CONNECTED,
+    BLU2USB_SCREEN_MOUSE_OPTIONS,
+    BLU2USB_SCREEN_HELP_REMAPPER_OPTIONS,
     BLU2USB_SCREEN_PASSTHROUGH_APPLIED,
+    BLU2USB_SCREEN_APPLY_PASSTHROUGH,
     BLU2USB_SCREEN_APPLY_DEFAULT,
     BLU2USB_SCREEN_DEFAULT_APPLIED,
     BLU2USB_SCREEN_APPLY_ESCAPE,
     BLU2USB_SCREEN_ESCAPE_APPLIED,
     BLU2USB_SCREEN_EDIT_CUSTOM,
-    BLU2USB_SCREEN_CUSTOM_APPLIED,
     BLU2USB_SCREEN_LEFT_WILL_BECOME,
     BLU2USB_SCREEN_RIGHT_WILL_BECOME,
     BLU2USB_SCREEN_MIDDLE_WILL_BECOME,
     BLU2USB_SCREEN_FORWARD_WILL_BECOME,
     BLU2USB_SCREEN_BACKWARD_WILL_BECOME,
-    BLU2USB_SCREEN_OTHER_OPTIONS,
-    BLU2USB_SCREEN_OTHER_OPTIONS_HELP,
-    BLU2USB_SCREEN_PAIR_KEYBOARD,
-    BLU2USB_SCREEN_PAIR_KEYBOARD_HELP,
-    BLU2USB_SCREEN_KEYBOARD_SAVED,
-    BLU2USB_SCREEN_PAIR_COMPOSITE,
-    BLU2USB_SCREEN_PAIR_COMPOSITE_HELP,
-    BLU2USB_SCREEN_COMPOSITE_SAVED,
     BLU2USB_SCREEN_SAVED_DEVICES,
-    BLU2USB_SCREEN_DEVICE_DETAILS_MOUSE,
-    BLU2USB_SCREEN_DEVICE_DETAILS_KEYBOARD,
-    BLU2USB_SCREEN_DEVICE_DETAILS_COMPOSITE,
     BLU2USB_SCREEN_REMOVE_DEVICE,
+    BLU2USB_SCREEN_HELP_REMOVE_THIS,
     BLU2USB_SCREEN_LEARN_KEYS,
     BLU2USB_SCREEN_COUNT
 } blu2usb_screen_id_t;
@@ -51,8 +45,6 @@ typedef enum {
 typedef enum {
     BLU2USB_UX_COMMAND_NONE = 0,
     BLU2USB_UX_COMMAND_PAIR_MOUSE,
-    BLU2USB_UX_COMMAND_PAIR_KEYBOARD,
-    BLU2USB_UX_COMMAND_PAIR_COMPOSITE,
     BLU2USB_UX_COMMAND_RETRY,
     BLU2USB_UX_COMMAND_APPLY_PASSTHROUGH,
     BLU2USB_UX_COMMAND_APPLY_DEFAULT,
@@ -78,6 +70,11 @@ typedef struct {
     blu2usb_screen_id_t screen;
     blu2usb_screen_id_t return_screen;
     unsigned selection;
+    unsigned remove_index;
+    char mouse_title[22], page_title[22], remove_title[22];
+    bool page_connected;
+    unsigned page_profile;
+    bool search_expired;
     unsigned status_page;
     unsigned saved_page;
     unsigned saved_pages;
@@ -88,6 +85,9 @@ typedef struct {
     blu2usb_mouse_target_t custom_targets[BLU2USB_MOUSE_SOURCE_COUNT];
 } blu2usb_ux_model_t;
 
+void blu2usb_ux_home(blu2usb_ux_model_t *ux);
+void blu2usb_ux_connection_changed(blu2usb_ux_model_t *ux, bool connected);
+void blu2usb_ux_search_expired(blu2usb_ux_model_t *ux);
 void blu2usb_ux_init(blu2usb_ux_model_t *ux);
 blu2usb_ux_command_t blu2usb_ux_input(blu2usb_ux_model_t *ux, blu2usb_control_t control, bool pressed);
 void blu2usb_ux_set_saved_device_count(blu2usb_ux_model_t *ux, unsigned count);

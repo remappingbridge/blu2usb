@@ -3,9 +3,9 @@
 #include <string.h>
 
 #define BLU2USB_STORAGE_MAGIC UINT32_C(0x53325042)
-#define BLU2USB_STORAGE_SCHEMA_VERSION UINT16_C(1)
+#define BLU2USB_STORAGE_SCHEMA_VERSION UINT16_C(2)
 #define BLU2USB_STORAGE_HEADER_SIZE 12u
-#define BLU2USB_STORAGE_CRC_OFFSET 76u
+#define BLU2USB_STORAGE_CRC_OFFSET (BLU2USB_STORAGE_RECORD_SIZE - 4u)
 
 static void put_u16(uint8_t *out, uint16_t value)
 {
@@ -76,14 +76,14 @@ bool blu2usb_storage_record_decode(
 {
     if (record == NULL) return false;
     if (get_u32(&record[0]) != BLU2USB_STORAGE_MAGIC ||
-        get_u16(&record[4]) != BLU2USB_STORAGE_SCHEMA_VERSION) return false;
+        (get_u16(&record[4]) != BLU2USB_STORAGE_SCHEMA_VERSION && get_u16(&record[4]) != 1u)) return false;
 
     const size_t stored_size = get_u16(&record[6]);
     if (stored_size > BLU2USB_STORAGE_MAX_PAYLOAD_SIZE ||
         stored_size > payload_capacity ||
         (stored_size != 0u && payload == NULL)) return false;
-    if (get_u32(&record[BLU2USB_STORAGE_CRC_OFFSET]) !=
-        crc32(record, BLU2USB_STORAGE_CRC_OFFSET)) return false;
+    const unsigned crc_offset=get_u16(&record[4])==1u ? 76u:BLU2USB_STORAGE_CRC_OFFSET;
+    if (stored_size > crc_offset - BLU2USB_STORAGE_HEADER_SIZE || get_u32(&record[crc_offset]) != crc32(record,crc_offset)) return false;
 
     if (generation != NULL) *generation = get_u32(&record[8]);
     if (payload_size != NULL) *payload_size = stored_size;

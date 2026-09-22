@@ -245,6 +245,9 @@ bool blu2usb_ble_hogp_parser_configure(blu2usb_ble_hogp_parser_t *parser,
 
         if (item_tag == HID_MAIN_COLLECTION) {
             const uint32_t usage = local_usage_at(&locals, 0u, globals.usage_page);
+            if (unsigned_value == HID_COLLECTION_APPLICATION &&
+                (uint16_t)(usage >> 16u) == HID_USAGE_PAGE_GENERIC_DESKTOP &&
+                ((uint16_t)usage == 6u || (uint16_t)usage == 7u)) parser->contains_keyboard=true;
             const bool is_mouse_application = unsigned_value == HID_COLLECTION_APPLICATION &&
                 (uint16_t)(usage >> 16u) == HID_USAGE_PAGE_GENERIC_DESKTOP &&
                 (uint16_t)usage == HID_USAGE_MOUSE;

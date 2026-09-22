@@ -11,6 +11,7 @@
 #include "blu2usb/hid_aggregator/hid_aggregator.h"
 #include "blu2usb/logitech_hidpp/logitech_hidpp.h"
 #include "blu2usb/profiles/profiles.h"
+#include "blu2usb/profiles/mice.h"
 #include "blu2usb/remap/remap.h"
 #include "blu2usb/renderer/renderer.h"
 #include "blu2usb/renderer/st7789_pico.h"
@@ -19,6 +20,40 @@
 #include "blu2usb/ux_model/ux_model.h"
 
 #define BLU2USB_RUNTIME_MESSAGES_PER_TICK 32u
+
+static blu2usb_mice_t mice;
+static int live_bond=-1;
+static bool legacy_storage;
+static blu2usb_search_t running_search=BLU2USB_SEARCH_NONE;
+static uint16_t saved_mask(void) {
+    uint16_t result=0;
+    for(unsigned i=0;i<16;i++)if(mice.mice[i].used)result|=(uint16_t)(1u<<i);
+    return result;
+}
+static bool persist_mice(void) {
+    uint8_t data[BLU2USB_MICE_BYTES];
+    return blu2usb_mice_encode(&mice,data) && blu2usb_storage_store(data,sizeof(data));
+}
+static void project_mice(blu2usb_ux_model_t *ux) {
+    blu2usb_ux_set_saved_device_count(ux,blu2usb_mice_count(&mice));
+    if(live_bond>=0)blu2usb_mouse_title(mice.mice[live_bond].name,ux->mouse_title);
+    int page=blu2usb_mice_page(&mice,live_bond,ux->saved_page);
+    if(page>=0) {
+        blu2usb_mouse_title(mice.mice[page].name,ux->page_title);
+        ux->page_connected=page==live_bond;ux->page_profile=mice.mice[page].profile;
+    }
+}
+static void synchronize_search(blu2usb_ux_model_t *ux) {
+    blu2usb_search_t desired=BLU2USB_SEARCH_NONE;
+    if(!blu2usb_interaction_is_locked(&ux->interaction)) {
+        if(ux->screen==BLU2USB_SCREEN_SEARCHING_FIRST)desired=BLU2USB_SEARCH_FIRST;
+        if(ux->screen==BLU2USB_SCREEN_HOME_SEARCHING)desired=BLU2USB_SEARCH_SAVED;
+        if(ux->screen==BLU2USB_SCREEN_PAIR_MOUSE && blu2usb_mice_count(&mice)<16)desired=BLU2USB_SEARCH_NEW;
+    }
+    if(desired!=running_search) {
+        blu2usb_ble_hogp_search(desired,saved_mask());running_search=desired;
+    }
+}
 
 static bool render_state(const blu2usb_display_hal_t *display,
                          const blu2usb_ux_model_t *ux)
@@ -95,18 +130,20 @@ static bool same_profile_config(const blu2usb_mouse_profile_config_t *left,
 
 static bool persist_profiles(const blu2usb_profiles_t *profiles)
 {
-    uint8_t payload[BLU2USB_PROFILE_SERIALIZED_SIZE];
-    return blu2usb_profiles_serialize(profiles, payload) &&
-           blu2usb_storage_store(payload, sizeof(payload));
+    blu2usb_mice_t previous=mice;
+    mice.profiles=*profiles;
+    if(live_bond>=0)mice.mice[live_bond].profile=profiles->active_kind;
+    if(persist_mice())return true;
+    mice=previous;return false;
 }
 
 static bool restore_profiles(blu2usb_profiles_t *profiles)
 {
-    uint8_t payload[BLU2USB_STORAGE_MAX_PAYLOAD_SIZE];
-    size_t payload_size = 0u;
-    if (!blu2usb_storage_load(payload, sizeof(payload), &payload_size) ||
-        payload_size != BLU2USB_PROFILE_SERIALIZED_SIZE) return false;
-    return blu2usb_profiles_restore(profiles, payload);
+    uint8_t payload[BLU2USB_STORAGE_MAX_PAYLOAD_SIZE];size_t size=0;
+    if(!blu2usb_storage_load(payload,sizeof(payload),&size))return false;
+    if(blu2usb_mice_decode(&mice,payload,size)) {*profiles=mice.profiles;return true;}
+    legacy_storage=size==BLU2USB_PROFILE_SERIALIZED_SIZE && blu2usb_profiles_restore(profiles,payload);
+    return legacy_storage;
 }
 
 static void synchronize_ux_profiles(blu2usb_ux_model_t *ux,
@@ -174,6 +211,7 @@ static void handle_ux_command(blu2usb_ux_model_t *ux,
                               bool *keyboard_valid)
 {
     blu2usb_mouse_profile_config_t candidate;
+    if(command.kind>=BLU2USB_UX_COMMAND_APPLY_PASSTHROUGH && command.kind<=BLU2USB_UX_COMMAND_APPLY_CUSTOM && live_bond<0)return;
     switch (command.kind) {
     case BLU2USB_UX_COMMAND_APPLY_PASSTHROUGH:
         if (blu2usb_profiles_build_preset(BLU2USB_MOUSE_PROFILE_PASSTHROUGH,
@@ -212,6 +250,20 @@ static void handle_ux_command(blu2usb_ux_model_t *ux,
                           mouse_valid, keyboard_valid))
             confirm_applied_profile(ux, profiles);
         break;
+    case BLU2USB_UX_COMMAND_REMOVE_DEVICE: {
+        unsigned index=ux->remove_index;
+        if(index>=16 || !mice.mice[index].used)break;
+        blu2usb_saved_mouse_t previous=mice.mice[index];
+        blu2usb_ble_hogp_disconnect((int)index);
+        mice.mice[index].used=false;
+        if(!persist_mice()) {mice.mice[index]=previous;break;}
+        blu2usb_ble_hogp_forget((int)index);
+        if(live_bond==(int)index) {live_bond=-1;blu2usb_ux_connection_changed(ux,false);}
+        project_mice(ux);
+        if(!ux->saved_device_count)blu2usb_ux_home(ux);
+        else ux->screen=BLU2USB_SCREEN_SAVED_DEVICES;
+        break;
+    }
     default:
         break;
     }
@@ -236,21 +288,10 @@ static bool service_ble_messages(blu2usb_ux_model_t *ux,
         if (!blu2usb_ble_hogp_decode_runtime_message(&message, &event)) continue;
         switch (event.type) {
         case BLU2USB_BLE_HOGP_EVENT_CONNECTED:
-            if (!blu2usb_ux_mouse_connected()) {
-                blu2usb_ux_set_mouse_connected(true);
-                ui_changed = true;
-            }
-            if (ux != NULL && ux->screen == BLU2USB_SCREEN_PAIR_MOUSE) {
-                ux->screen = BLU2USB_SCREEN_MOUSE_SAVED;
-                ux->selection = 0u;
-                ui_changed = true;
-            }
+            blu2usb_ux_connection_changed(ux,true);ui_changed=true;
             break;
         case BLU2USB_BLE_HOGP_EVENT_DISCONNECTED:
-            if (blu2usb_ux_mouse_connected()) {
-                blu2usb_ux_set_mouse_connected(false);
-                ui_changed = true;
-            }
+            blu2usb_ux_connection_changed(ux,false);ui_changed=true;
             (void)blu2usb_hid_aggregator_release_source(aggregator, mouse);
             (void)blu2usb_hid_aggregator_release_source(aggregator, synthetic);
             *mouse_valid = false;
@@ -288,13 +329,16 @@ int main(void)
     bool last_mouse_valid = false;
     blu2usb_usb_keyboard_report_t last_keyboard = {0};
     bool last_keyboard_valid = false;
+    bool flush_release=false;
 
     blu2usb_ux_init(&ux);
     blu2usb_ux_set_mouse_connected(false);
-    ux.screen = BLU2USB_SCREEN_LEARN_KEYS;
+
     blu2usb_hid_aggregator_init(&aggregator);
     blu2usb_profiles_init(&profiles);
     (void)restore_profiles(&profiles);
+    bool legacy=legacy_storage;
+    mice.profiles=profiles;
     synchronize_ux_profiles(&ux, &profiles);
 
     blu2usb_remap_init(&remap);
@@ -314,12 +358,59 @@ int main(void)
     blu2usb_logitech_hidpp_pico_set_forward_fix(
         blu2usb_profiles_requires_forward_held_fix(&boot_profile));
     (void)blu2usb_ble_hogp_start();
+    uint16_t bonds=blu2usb_ble_hogp_bond_mask();
+    if(legacy) {
+        for(unsigned i=0;i<16;i++)if(bonds&(1u<<i)) {
+            mice.mice[i].used=true;mice.mice[i].profile=profiles.active_kind;
+            strcpy(mice.mice[i].name,"UNKNOWN MOUSE");
+        }
+        (void)persist_mice();
+    } else {
+        /* Complete interrupted removal / discard uncommitted candidate bonds. */
+        for(unsigned i=0;i<16;i++)if((bonds&(1u<<i)) && !mice.mice[i].used)blu2usb_ble_hogp_forget((int)i);
+    }
+    project_mice(&ux);blu2usb_ux_home(&ux);synchronize_search(&ux);
+    (void)render_state(&display,&ux);
 
     for (;;) {
         blu2usb_usb_hid_pico_task();
+        blu2usb_ble_status_t state;
+        blu2usb_ble_hogp_status(&state);
+        live_bond=state.live_bond;
+        if(state.expired) {blu2usb_ux_search_expired(&ux);running_search=BLU2USB_SEARCH_NONE;(void)render_state(&display,&ux);}
+        if(state.candidate_ready) {
+            int index=state.candidate_bond;
+            blu2usb_mice_t previous=mice;
+            if(index>=0 && index<16) {
+                if(!mice.mice[index].used) {
+                    mice.mice[index].used=true;mice.mice[index].profile=BLU2USB_MOUSE_PROFILE_PASSTHROUGH;
+                }
+                if(state.candidate_name[0])memcpy(mice.mice[index].name,state.candidate_name,32);
+                if(persist_mice() && blu2usb_ble_hogp_accept(index)) {
+                    /* Retire every old held output before the new session can reach USB. */
+                    blu2usb_hid_aggregator_init(&aggregator);last_mouse_valid=false;last_keyboard_valid=false;flush_release=true;
+                    live_bond=index;profiles.active_kind=mice.mice[index].profile;
+                    blu2usb_profiles_configure_active(&profiles,&boot_profile);blu2usb_remap_set_profile(&remap,&boot_profile);
+                    blu2usb_logitech_hidpp_pico_set_forward_fix(blu2usb_profiles_requires_forward_held_fix(&boot_profile));
+                    synchronize_ux_profiles(&ux,&profiles);project_mice(&ux);
+                } else {
+                    mice=previous;(void)persist_mice();
+                    blu2usb_ble_hogp_search(BLU2USB_SEARCH_NONE,saved_mask());
+                    blu2usb_ux_search_expired(&ux);running_search=BLU2USB_SEARCH_NONE;
+                }
+            }
+        }
+        if(flush_release) {
+            service_usb_mouse(&aggregator,&last_mouse_buttons,&last_mouse_valid);
+            service_usb_keyboard(&aggregator,&last_keyboard,&last_keyboard_valid);
+            if(!last_mouse_valid || !last_keyboard_valid)continue;
+            flush_release=false;
+        }
         const bool ble_ui_changed =
             service_ble_messages(&ux, &aggregator, &remap,
                                  &last_mouse_valid, &last_keyboard_valid);
+        project_mice(&ux);
+        synchronize_search(&ux);
         if (ble_ui_changed && !blu2usb_interaction_is_locked(&ux.interaction))
             (void)render_state(&display, &ux);
         service_usb_mouse(&aggregator, &last_mouse_buttons, &last_mouse_valid);
@@ -329,10 +420,17 @@ int main(void)
         blu2usb_hat_event_t event;
         while (blu2usb_hat_pico_poll_event(&event)) {
             const bool was_locked = blu2usb_interaction_is_locked(&ux.interaction);
+            blu2usb_screen_id_t previous_screen=ux.screen;
             const blu2usb_ux_command_t command =
                 blu2usb_ux_input(&ux, event.control, event.pressed);
+            if(ux.screen==BLU2USB_SCREEN_REMOVE_DEVICE && previous_screen==BLU2USB_SCREEN_SAVED_DEVICES) {
+                int index=blu2usb_mice_page(&mice,live_bond,ux.saved_page);
+                ux.remove_index=index<0 ? 16u:(unsigned)index;
+                memcpy(ux.remove_title,ux.page_title,22);
+            }
             handle_ux_command(&ux, command, &profiles, &remap, &aggregator,
                               &last_mouse_valid, &last_keyboard_valid);
+            project_mice(&ux);synchronize_search(&ux);
             const bool is_locked = blu2usb_interaction_is_locked(&ux.interaction);
             if (!was_locked && is_locked) {
                 blu2usb_st7789_pico_set_backlight(false);

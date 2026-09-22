@@ -58,6 +58,7 @@ static void test_report_map_to_canonical_mouse(void)
     const blu2usb_hid_source_t source = blu2usb_hid_source_make(BLU2USB_HID_SOURCE_MOUSE, 1u);
     CHECK(blu2usb_ble_hogp_parser_configure(&parser, source, k_composite_report_map, sizeof(k_composite_report_map)));
     CHECK(blu2usb_ble_hogp_parser_has_mouse(&parser));
+    CHECK(parser.contains_keyboard); /* Parses reports, but cannot be admitted as a product mouse. */
     CHECK(parser.report_count == 2u);
     CHECK(parser.field_count == 9u);
 
