@@ -212,6 +212,17 @@ static void handle_ux_command(blu2usb_ux_model_t *ux,
                           mouse_valid, keyboard_valid))
             confirm_applied_profile(ux, profiles);
         break;
+    case BLU2USB_UX_COMMAND_RETRY_SAVED_SEARCH:
+        (void)blu2usb_ble_hogp_retry_saved_search();
+        break;
+    case BLU2USB_UX_COMMAND_CANCEL_SAVED_SEARCH:
+        blu2usb_ble_hogp_cancel_saved_search();
+        break;
+    case BLU2USB_UX_COMMAND_PAIR_MOUSE:
+        /* v0.6.2 replaces HOME only. Stop HOME-owned saved search before
+         * entering the inherited v0.6 Pair Mouse page. */
+        blu2usb_ble_hogp_cancel_saved_search();
+        break;
     default:
         break;
     }
@@ -239,7 +250,7 @@ static bool service_ble_messages(blu2usb_ux_model_t *ux,
             if (!blu2usb_ux_mouse_connected()) {
                 blu2usb_ux_set_mouse_connected(true);
                 if (ux != NULL)
-                    blu2usb_ux_first_mouse_connected(ux);
+                    blu2usb_ux_home_mouse_connected(ux);
                 ui_changed = true;
             }
             if (ux != NULL && ux->screen == BLU2USB_SCREEN_PAIR_MOUSE) {
@@ -252,13 +263,19 @@ static bool service_ble_messages(blu2usb_ux_model_t *ux,
             if (blu2usb_ux_mouse_connected()) {
                 blu2usb_ux_set_mouse_connected(false);
                 if (ux != NULL)
-                    blu2usb_ux_first_mouse_disconnected(ux);
+                    blu2usb_ux_home_mouse_disconnected(ux);
                 ui_changed = true;
             }
             (void)blu2usb_hid_aggregator_release_source(aggregator, mouse);
             (void)blu2usb_hid_aggregator_release_source(aggregator, synthetic);
             *mouse_valid = false;
             *keyboard_valid = false;
+            break;
+        case BLU2USB_BLE_HOGP_EVENT_SAVED_SEARCH_TIMEOUT:
+            if (ux != NULL) {
+                blu2usb_ux_home_saved_search_timeout(ux);
+                ui_changed = true;
+            }
             break;
         case BLU2USB_BLE_HOGP_EVENT_MOUSE: {
             blu2usb_remap_result_t mapped;
@@ -333,8 +350,13 @@ int main(void)
         blu2usb_hat_event_t event;
         while (blu2usb_hat_pico_poll_event(&event)) {
             const bool was_locked = blu2usb_interaction_is_locked(&ux.interaction);
+            const bool first_start_was_complete = ux.first_start_complete;
             const blu2usb_ux_command_t command =
                 blu2usb_ux_input(&ux, event.control, event.pressed);
+
+            if (!first_start_was_complete && ux.first_start_complete)
+                blu2usb_ble_hogp_set_saved_search_mode(true);
+
             handle_ux_command(&ux, command, &profiles, &remap, &aggregator,
                               &last_mouse_valid, &last_keyboard_valid);
             const bool is_locked = blu2usb_interaction_is_locked(&ux.interaction);
