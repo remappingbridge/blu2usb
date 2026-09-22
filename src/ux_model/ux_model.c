@@ -40,6 +40,8 @@ static const blu2usb_screen_template_t screens[BLU2USB_SCREEN_COUNT] = {
     [BLU2USB_SCREEN_DEVICE_DETAILS_COMPOSITE] = {{"DEVICE DETAILS","DESK COMPOSITE","TYPE: COMPOSITE","STATUS: SAVED"," REMOVE DEVICE",EMPTY,"JOY PRESS: ACCESS","KEY B: BACK","KEY Y: LOCK"},DYN(1)|DYN(2)|DYN(3)},
     [BLU2USB_SCREEN_REMOVE_DEVICE] = {{"REMOVE DEVICE","BKB-3G","PAIRING AND MAPPINGS","WILL BE DELETED",EMPTY,EMPTY,"KEY A: REMOVE","KEY B: CANCEL","KEY Y: LOCK"},DYN(1)},
     [BLU2USB_SCREEN_LEARN_KEYS] = {{"PRESS TO LEARN A KEY","      JOY UP","JOY    JOY    JOY","LEFT  PRESS  RIGHT","     JOY DOWN","               KEY A","LOCK SCREEN    KEY B"," AND UNLOCK    KEY X","  OPEN HOME -> KEY Y"},0},
+    [BLU2USB_SCREEN_SEARCHING_FIRST_MOUSE] = {{"SEARCHING FIRST MOUSE","PRESS TO LEARN KEYS","WHILE WAIT CONNECTION","       JOY UP","  JOY    JOY    JOY","  LEFT  PRESS  RIGHT","      JOY DOWN"," KEY A         KEY X"," KEY B         KEY Y"},0},
+    [BLU2USB_SCREEN_FIRST_MOUSE_CONNECTED] = {{"FIRST MOUSE CONNECTED","       JOY UP","  JOY    JOY    JOY","  LEFT  PRESS  RIGHT","      JOY DOWN"," KEY A         KEY X"," KEY B         KEY Y",EMPTY," KEY Y: LOCK"},0},
 };
 
 static blu2usb_ux_command_t no_command(void) {
@@ -58,7 +60,10 @@ static bool is_will_become(blu2usb_screen_id_t screen) {
 }
 
 static bool lock_allowed(blu2usb_screen_id_t screen) {
-    return !is_help(screen) && screen != BLU2USB_SCREEN_LEARN_KEYS;
+    return !is_help(screen) &&
+           screen != BLU2USB_SCREEN_LEARN_KEYS &&
+           screen != BLU2USB_SCREEN_SEARCHING_FIRST_MOUSE &&
+           screen != BLU2USB_SCREEN_FIRST_MOUSE_CONNECTED;
 }
 
 static void enter(blu2usb_ux_model_t *ux, blu2usb_screen_id_t screen) {
@@ -107,6 +112,10 @@ static blu2usb_screen_id_t back_target(const blu2usb_ux_model_t *ux) {
     case BLU2USB_SCREEN_DEVICE_DETAILS_COMPOSITE: return BLU2USB_SCREEN_SAVED_DEVICES;
     case BLU2USB_SCREEN_REMOVE_DEVICE: return ux->return_screen;
     case BLU2USB_SCREEN_LEARN_KEYS: return BLU2USB_SCREEN_HOME;
+    case BLU2USB_SCREEN_SEARCHING_FIRST_MOUSE:
+        return BLU2USB_SCREEN_SEARCHING_FIRST_MOUSE;
+    case BLU2USB_SCREEN_FIRST_MOUSE_CONNECTED:
+        return BLU2USB_SCREEN_FIRST_MOUSE_CONNECTED;
     default: return BLU2USB_SCREEN_HOME;
     }
 }
@@ -136,7 +145,7 @@ unsigned blu2usb_ux_option_count(const blu2usb_ux_model_t *ux) {
 
 void blu2usb_ux_init(blu2usb_ux_model_t *ux) {
     blu2usb_interaction_init(&ux->interaction);
-    ux->screen = BLU2USB_SCREEN_HOME;
+    ux->screen = BLU2USB_SCREEN_SEARCHING_FIRST_MOUSE;
     ux->return_screen = BLU2USB_SCREEN_HOME;
     ux->selection = 0;
     ux->status_page = 0;
@@ -145,6 +154,7 @@ void blu2usb_ux_init(blu2usb_ux_model_t *ux) {
     ux->saved_device_count = 0;
     ux->active_profile = BLU2USB_MOUSE_PROFILE_PASSTHROUGH;
     ux->custom_dirty = false;
+    ux->first_start_complete = false;
     ux->custom_source = BLU2USB_MOUSE_SOURCE_LEFT;
     ux->custom_targets[BLU2USB_MOUSE_SOURCE_LEFT] = BLU2USB_MOUSE_TARGET_LEFT;
     ux->custom_targets[BLU2USB_MOUSE_SOURCE_RIGHT] = BLU2USB_MOUSE_TARGET_RIGHT;
@@ -207,7 +217,18 @@ blu2usb_ux_command_t blu2usb_ux_input(blu2usb_ux_model_t *ux, blu2usb_control_t 
     blu2usb_interaction_event_t event = blu2usb_interaction_input(&ux->interaction, control, pressed);
     if (event.kind == BLU2USB_INTERACTION_NONE) return cmd;
     if (event.kind == BLU2USB_INTERACTION_UNLOCK) {
+        if (ux->screen == BLU2USB_SCREEN_FIRST_MOUSE_CONNECTED)
+            ux->first_start_complete = true;
         enter(ux, BLU2USB_SCREEN_HOME);
+        return cmd;
+    }
+
+    if (ux->screen == BLU2USB_SCREEN_SEARCHING_FIRST_MOUSE)
+        return cmd;
+
+    if (ux->screen == BLU2USB_SCREEN_FIRST_MOUSE_CONNECTED) {
+        if (control == BLU2USB_CONTROL_KEY_Y)
+            blu2usb_interaction_lock(&ux->interaction);
         return cmd;
     }
 
@@ -362,6 +383,18 @@ blu2usb_ux_command_t blu2usb_ux_input(blu2usb_ux_model_t *ux, blu2usb_control_t 
     }
 
     return cmd;
+}
+
+void blu2usb_ux_first_mouse_connected(blu2usb_ux_model_t *ux)
+{
+    if (ux == NULL || ux->first_start_complete) return;
+    enter(ux, BLU2USB_SCREEN_FIRST_MOUSE_CONNECTED);
+}
+
+void blu2usb_ux_first_mouse_disconnected(blu2usb_ux_model_t *ux)
+{
+    if (ux == NULL || ux->first_start_complete) return;
+    enter(ux, BLU2USB_SCREEN_SEARCHING_FIRST_MOUSE);
 }
 
 uint16_t blu2usb_ux_learn_white_span_mask(const blu2usb_ux_model_t *ux) {
