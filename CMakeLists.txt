@@ -55,6 +55,12 @@ add_library(blu2usb_remap STATIC src/remap/remap.c)
 target_include_directories(blu2usb_remap PUBLIC include)
 target_link_libraries(blu2usb_remap PUBLIC blu2usb_profiles)
 
+add_library(blu2usb_device_registry STATIC
+    src/device_registry/device_registry.c
+    src/device_registry/product_snapshot.c
+)
+target_include_directories(blu2usb_device_registry PUBLIC include)
+
 add_library(blu2usb_storage STATIC src/storage/storage.c)
 target_include_directories(blu2usb_storage PUBLIC include)
 
@@ -134,6 +140,7 @@ endif()
 target_link_libraries(blu2usb_module_hid_aggregator INTERFACE blu2usb_hid_aggregator)
 target_link_libraries(blu2usb_module_profiles INTERFACE blu2usb_profiles)
 target_link_libraries(blu2usb_module_remap INTERFACE blu2usb_remap)
+target_link_libraries(blu2usb_module_device_registry INTERFACE blu2usb_device_registry)
 target_link_libraries(blu2usb_module_storage INTERFACE blu2usb_storage)
 target_link_libraries(blu2usb_module_interaction INTERFACE blu2usb_interaction)
 target_link_libraries(blu2usb_module_ux_model INTERFACE blu2usb_ux_model)
