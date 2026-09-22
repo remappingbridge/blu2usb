@@ -17,6 +17,7 @@ typedef enum {
     BLU2USB_BLE_HOGP_MESSAGE_CONNECTED = 1,
     BLU2USB_BLE_HOGP_MESSAGE_DISCONNECTED = 2,
     BLU2USB_BLE_HOGP_MESSAGE_MOUSE = 3,
+    BLU2USB_BLE_HOGP_MESSAGE_SAVED_SEARCH_TIMEOUT = 4,
 } blu2usb_ble_hogp_message_type_t;
 
 typedef enum {
@@ -64,6 +65,7 @@ typedef enum {
     BLU2USB_BLE_HOGP_EVENT_CONNECTED = 0,
     BLU2USB_BLE_HOGP_EVENT_DISCONNECTED,
     BLU2USB_BLE_HOGP_EVENT_MOUSE,
+    BLU2USB_BLE_HOGP_EVENT_SAVED_SEARCH_TIMEOUT,
 } blu2usb_ble_hogp_event_type_t;
 
 typedef struct {
@@ -115,5 +117,8 @@ bool blu2usb_ble_hogp_decode_runtime_message(const blu2usb_bt_runtime_message_t 
 bool blu2usb_ble_hogp_register_vendor_backend(
     const blu2usb_ble_hogp_vendor_backend_t *backend);
 bool blu2usb_ble_hogp_start(void);
+void blu2usb_ble_hogp_set_saved_search_mode(bool enabled);
+bool blu2usb_ble_hogp_retry_saved_search(void);
+void blu2usb_ble_hogp_cancel_saved_search(void);
 
 #endif
