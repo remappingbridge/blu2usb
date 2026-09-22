@@ -117,3 +117,17 @@ add_test(
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_mux03_architecture.py
             ${PROJECT_SOURCE_DIR}
 )
+
+add_executable(blu2usb_test_mux04_storage test_mux04_storage.c)
+target_link_libraries(blu2usb_test_mux04_storage PRIVATE
+    blu2usb_storage
+    blu2usb_device_registry
+    blu2usb_profiles
+)
+add_test(NAME mux04_durable_product_storage COMMAND blu2usb_test_mux04_storage)
+
+add_test(
+    NAME mux04_architecture
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_mux04_architecture.py
+            ${PROJECT_SOURCE_DIR}
+)
