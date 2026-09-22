@@ -24,7 +24,7 @@ EXPECTED_DEPS = {
     "usb_hid": ["domain", "hid_aggregator"],
     "storage": ["domain"],
     "interaction": ["domain"],
-    "ux_model": ["domain", "interaction"],
+    "ux_model": ["domain", "interaction", "device_registry"],
     "renderer": ["ux_model"],
     "hat": ["domain"],
     "app": [
