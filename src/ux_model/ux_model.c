@@ -360,7 +360,8 @@ blu2usb_ux_command_t blu2usb_ux_input(blu2usb_ux_model_t *ux, blu2usb_control_t 
 
         if (ux->screen != BLU2USB_SCREEN_HOME) {
             const blu2usb_screen_id_t target = back_target(ux);
-            if (ux->home_v062_enabled && target == BLU2USB_SCREEN_HOME)
+            if (ux->home_v062_enabled &&
+                (target == BLU2USB_SCREEN_HOME || is_v062_home(target)))
                 return enter_home_resolved(ux, true);
             enter(ux, target);
         }
@@ -375,15 +376,19 @@ blu2usb_ux_command_t blu2usb_ux_input(blu2usb_ux_model_t *ux, blu2usb_control_t 
          ux->screen == BLU2USB_SCREEN_HOME_RETRY) &&
         control == BLU2USB_CONTROL_JOY_PRESS) {
         const blu2usb_screen_id_t owner = ux->screen;
+        const unsigned selected = ux->selection;
         static const blu2usb_screen_id_t dest[3] = {
             BLU2USB_SCREEN_SAVED_DEVICES,
             BLU2USB_SCREEN_PAIR_MOUSE,
             BLU2USB_SCREEN_LEARN_KEYS
         };
         ux->return_screen = owner;
-        enter(ux, dest[ux->selection]);
-        if (ux->selection == 1u)
+        enter(ux, dest[selected]);
+
+        if (selected == 1u)
             cmd.kind = BLU2USB_UX_COMMAND_PAIR_MOUSE;
+        else if (owner == BLU2USB_SCREEN_HOME_SEARCHING)
+            cmd.kind = BLU2USB_UX_COMMAND_CANCEL_SAVED_SEARCH;
         return cmd;
     }
 
