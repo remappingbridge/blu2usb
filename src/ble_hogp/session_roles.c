@@ -131,6 +131,37 @@ bool blu2usb_ble_hogp_session_begin_commit(
     return true;
 }
 
+bool blu2usb_ble_hogp_session_abort_commit(
+    blu2usb_ble_hogp_session_roles_t *roles,
+    uint32_t generation)
+{
+    if (roles == NULL || generation == 0u ||
+        !roles->new_active || !roles->commit_pending ||
+        generation != roles->active_generation ||
+        roles->authoritative_slot != BLU2USB_BLE_HOGP_SESSION_SLOT_NONE ||
+        !slot_valid(roles->provisional_slot) ||
+        !roles->ready[roles->provisional_slot])
+        return false;
+
+    uint8_t retiring = BLU2USB_BLE_HOGP_SESSION_SLOT_NONE;
+    for (uint8_t slot = 0u; slot < BLU2USB_BLE_HOGP_SESSION_SLOT_COUNT; ++slot) {
+        if (roles->roles[slot] == BLU2USB_BLE_HOGP_ROLE_RETIRING) {
+            if (retiring != BLU2USB_BLE_HOGP_SESSION_SLOT_NONE)
+                return false;
+            retiring = slot;
+        }
+    }
+
+    if (!slot_valid(retiring))
+        return false;
+
+    roles->roles[retiring] = BLU2USB_BLE_HOGP_ROLE_AUTHORITATIVE;
+    roles->ready[retiring] = true;
+    roles->authoritative_slot = retiring;
+    roles->commit_pending = false;
+    return true;
+}
+
 bool blu2usb_ble_hogp_session_retired(
     blu2usb_ble_hogp_session_roles_t *roles,
     uint8_t slot,
