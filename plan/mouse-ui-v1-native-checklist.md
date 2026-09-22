@@ -15,10 +15,11 @@ The abandoned `experimental/g06-mouse-ux-v1` branch is out of scope.
 - [x] MUX-01 Prove per-Mouse confirmed profile association
 - [x] MUX-01 HUMAN ACCEPTANCE
 
-- [ ] MUX-02 Implement host-pure connection_coordinator
-- [ ] MUX-02 Implement FIRST/SAVED/NEW operation purposes and deadlines
-- [ ] MUX-02 Implement operation tokens, cancellation and stale/late rejection
-- [ ] MUX-02 Implement HOME resolver and handoff/remove state machines
+- [x] MUX-02 Implement host-pure connection_coordinator
+- [x] MUX-02 Implement FIRST/SAVED/NEW operation purposes and deadlines
+- [x] MUX-02 Implement operation tokens, cancellation and stale/late rejection
+- [x] MUX-02 Implement HOME resolver and handoff/remove state machines
+- [ ] MUX-02 HUMAN ACCEPTANCE
 
 - [ ] MUX-03 Implement 30-screen UI Layout 1.0 model in BLU2USB architecture
 - [ ] MUX-03 Validate Back/Help/Lock/release ownership semantics
