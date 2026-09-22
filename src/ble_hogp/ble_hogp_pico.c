@@ -306,10 +306,13 @@ static void service_saved_search_requests(void)
     }
 
     if (g_request_retry_saved_search) {
-        g_request_retry_saved_search = false;
-        if (g_saved_search_mode && g_state == BLE_HOGP_STATE_IDLE &&
-            !start_bonded_reconnect())
-            finish_saved_search(true);
+        if (!g_saved_search_mode || g_state == BLE_HOGP_STATE_READY) {
+            g_request_retry_saved_search = false;
+        } else if (g_state == BLE_HOGP_STATE_IDLE) {
+            g_request_retry_saved_search = false;
+            if (!start_bonded_reconnect())
+                finish_saved_search(true);
+        }
     }
 }
 
