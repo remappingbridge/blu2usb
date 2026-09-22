@@ -10,9 +10,10 @@ The abandoned `experimental/g06-mouse-ux-v1` branch is out of scope.
 - [x] MUX-00 Confirm no mouse-ui/mouse-core/UI-Core implementation dependency
 - [x] MUX-00 HUMAN ACCEPTANCE
 
-- [ ] MUX-01 Implement host-pure device_registry
-- [ ] MUX-01 Prove max 16 records, stable identity and connected-first presentation
-- [ ] MUX-01 Prove per-Mouse confirmed profile association
+- [x] MUX-01 Implement host-pure device_registry
+- [x] MUX-01 Prove max 16 records, stable identity and connected-first presentation
+- [x] MUX-01 Prove per-Mouse confirmed profile association
+- [ ] MUX-01 HUMAN ACCEPTANCE
 
 - [ ] MUX-02 Implement host-pure connection_coordinator
 - [ ] MUX-02 Implement FIRST/SAVED/NEW operation purposes and deadlines
