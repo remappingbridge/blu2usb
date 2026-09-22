@@ -96,6 +96,9 @@ static int selected_row(const blu2usb_ux_model_t *ux)
 {
     switch (ux->screen) {
     case BLU2USB_SCREEN_HOME:
+    case BLU2USB_SCREEN_HOME_SEARCHING:
+    case BLU2USB_SCREEN_HOME_RETRY:
+    case BLU2USB_SCREEN_HOME_CONNECTED:
     case BLU2USB_SCREEN_MOUSE_OPTIONS:
     case BLU2USB_SCREEN_OTHER_OPTIONS:
     case BLU2USB_SCREEN_EDIT_CUSTOM:
@@ -148,8 +151,12 @@ static bool row_has_control(const char *row, blu2usb_control_t control)
 {
     if (row == NULL) return false;
     switch (control) {
-    case BLU2USB_CONTROL_JOY_UP: return strstr(row, "JOY UP") != NULL;
-    case BLU2USB_CONTROL_JOY_DOWN: return strstr(row, "JOY DOWN") != NULL;
+    case BLU2USB_CONTROL_JOY_UP:
+        return strstr(row, "JOY UP") != NULL ||
+               strstr(row, "UP / DOWN") != NULL;
+    case BLU2USB_CONTROL_JOY_DOWN:
+        return strstr(row, "JOY DOWN") != NULL ||
+               strstr(row, "UP / DOWN") != NULL;
     case BLU2USB_CONTROL_JOY_LEFT: return strstr(row, "JOY LEFT") != NULL || strstr(row, "RIGHT\\LEFT") != NULL;
     case BLU2USB_CONTROL_JOY_RIGHT: return strstr(row, "JOY RIGHT") != NULL;
     case BLU2USB_CONTROL_JOY_PRESS: return strstr(row, "JOY PRESS") != NULL;
@@ -241,6 +248,23 @@ static void project_first_start_pressed(
     }
 }
 
+static const char *home_connected_profile_text(
+    blu2usb_mouse_profile_kind_t profile)
+{
+    switch (profile) {
+    case BLU2USB_MOUSE_PROFILE_PASSTHROUGH:
+        return " PASSTHROUGH";
+    case BLU2USB_MOUSE_PROFILE_DEFAULT_REMAP:
+        return " REMAPPED TO STANDARD";
+    case BLU2USB_MOUSE_PROFILE_ESCAPE_REMAP:
+        return " REMAPPED TO ESCAPE";
+    case BLU2USB_MOUSE_PROFILE_CUSTOM_REMAP:
+        return " REMAPPED TO CUSTOM";
+    default:
+        return " PASSTHROUGH";
+    }
+}
+
 void blu2usb_ui_project(const blu2usb_ux_model_t *ux, blu2usb_ui_frame_t *frame)
 {
     if (ux == NULL || frame == NULL) return;
@@ -265,6 +289,8 @@ void blu2usb_ui_project(const blu2usb_ux_model_t *ux, blu2usb_ui_frame_t *frame)
 
     for (uint8_t row = 0; row < BLU2USB_RENDERER_TEXT_ROWS; ++row) {
         const char *text = screen->rows[row] != NULL ? screen->rows[row] : "";
+        if (ux->screen == BLU2USB_SCREEN_HOME_CONNECTED && row == 1u)
+            text = home_connected_profile_text(ux->active_profile);
         if (custom_feedback && row == 8u) text = "";
         blu2usb_ui_tone_t tone;
         if (row == 0) tone = BLU2USB_UI_TONE_TITLE;
