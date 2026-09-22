@@ -137,3 +137,9 @@ target_link_libraries(blu2usb_test_mux05_session_roles PRIVATE
     blu2usb_ble_hogp
 )
 add_test(NAME mux05_session_roles COMMAND blu2usb_test_mux05_session_roles)
+
+add_test(
+    NAME mux05_architecture
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_mux05_architecture.py
+            ${PROJECT_SOURCE_DIR}
+)
