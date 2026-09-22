@@ -21,10 +21,11 @@ The abandoned `experimental/g06-mouse-ux-v1` branch is out of scope.
 - [x] MUX-02 Implement HOME resolver and handoff/remove state machines
 - [x] MUX-02 HUMAN ACCEPTANCE
 
-- [ ] MUX-03 Implement 30-screen UI Layout 1.0 model in BLU2USB architecture
-- [ ] MUX-03 Validate Back/Help/Lock/release ownership semantics
-- [ ] MUX-03 Validate profile/Custom/Saved Devices screen projections
-- [ ] MUX-03 Validate exact text/layout/color rules on host
+- [x] MUX-03 Implement 30-screen UI Layout 1.0 model in BLU2USB architecture
+- [x] MUX-03 Validate Back/Help/Lock/release ownership semantics
+- [x] MUX-03 Validate profile/Custom/Saved Devices screen projections
+- [x] MUX-03 Validate exact text/layout/color rules on host
+- [ ] MUX-03 HUMAN ACCEPTANCE
 
 - [ ] MUX-04 Expand durable product storage for registry + per-Mouse profile + global Custom
 - [ ] MUX-04 Preserve BTstack credential-store separation
