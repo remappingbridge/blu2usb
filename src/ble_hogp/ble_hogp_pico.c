@@ -193,13 +193,18 @@ static void candidate_abort_locked(
 {
     uint8_t slot = BLU2USB_BLE_HOGP_SESSION_SLOT_NONE;
     const uint32_t generation = g_candidate_generation;
+    const bd_addr_type_t peer_type = g_candidate_address_type;
+    bd_addr_t peer_address;
+    memcpy(peer_address, g_candidate_address, sizeof(peer_address));
+
     if (!blu2usb_ble_hogp_session_cancel_new(
             &g_session_roles, generation, &slot))
         return;
 
     (void)slot;
     stop_candidate_timer();
-    g_candidate_delete_bond = delete_bond;
+    g_candidate_delete_bond =
+        delete_bond && peer_type != BD_ADDR_TYPE_UNKNOWN;
 
     if (g_candidate_state == BLE_HOGP_CANDIDATE_SCANNING) {
         gap_stop_scan();
@@ -217,8 +222,7 @@ static void candidate_abort_locked(
 
     g_candidate_generation = 0u;
     (void)publish_provisional(
-        event_type, generation,
-        g_candidate_address_type, g_candidate_address);
+        event_type, generation, peer_type, peer_address);
 }
 
 static void candidate_timeout_handler(btstack_timer_source_t *timer)
@@ -744,17 +748,9 @@ static void hci_packet_handler(uint8_t packet_type, uint16_t channel,
                 gap_subevent_le_connection_complete_get_status(packet);
 
             if (status != ERROR_CODE_SUCCESS) {
-                const uint32_t generation = g_candidate_generation;
-                (void)blu2usb_ble_hogp_session_cancel_new(
-                    &g_session_roles, generation, NULL);
-                stop_candidate_timer();
-                candidate_clear_transport_locked();
-                g_candidate_generation = 0u;
-                (void)publish_provisional(
+                candidate_abort_locked(
                     BLU2USB_BLE_HOGP_MESSAGE_PROVISIONAL_CLEARED,
-                    generation,
-                    g_candidate_address_type,
-                    g_candidate_address);
+                    false);
                 break;
             }
 
