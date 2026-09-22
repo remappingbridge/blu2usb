@@ -217,8 +217,16 @@ blu2usb_ux_command_t blu2usb_ux_input(blu2usb_ux_model_t *ux, blu2usb_control_t 
     blu2usb_interaction_event_t event = blu2usb_interaction_input(&ux->interaction, control, pressed);
     if (event.kind == BLU2USB_INTERACTION_NONE) return cmd;
     if (event.kind == BLU2USB_INTERACTION_UNLOCK) {
-        if (ux->screen == BLU2USB_SCREEN_FIRST_MOUSE_CONNECTED)
-            ux->first_start_complete = true;
+        if (!ux->first_start_complete) {
+            if (ux->screen == BLU2USB_SCREEN_FIRST_MOUSE_CONNECTED) {
+                ux->first_start_complete = true;
+                enter(ux, BLU2USB_SCREEN_HOME);
+            } else {
+                enter(ux, BLU2USB_SCREEN_SEARCHING_FIRST_MOUSE);
+            }
+            return cmd;
+        }
+
         enter(ux, BLU2USB_SCREEN_HOME);
         return cmd;
     }
