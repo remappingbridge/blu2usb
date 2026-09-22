@@ -19,7 +19,7 @@ The abandoned `experimental/g06-mouse-ux-v1` branch is out of scope.
 - [x] MUX-02 Implement FIRST/SAVED/NEW operation purposes and deadlines
 - [x] MUX-02 Implement operation tokens, cancellation and stale/late rejection
 - [x] MUX-02 Implement HOME resolver and handoff/remove state machines
-- [ ] MUX-02 HUMAN ACCEPTANCE
+- [x] MUX-02 HUMAN ACCEPTANCE
 
 - [ ] MUX-03 Implement 30-screen UI Layout 1.0 model in BLU2USB architecture
 - [ ] MUX-03 Validate Back/Help/Lock/release ownership semantics
