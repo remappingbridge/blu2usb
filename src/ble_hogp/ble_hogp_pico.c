@@ -395,6 +395,21 @@ static void connect_hid_service(void)
     if (status != ERROR_CODE_SUCCESS) disconnect_and_rescan();
 }
 
+static void connect_candidate_hid_service(void)
+{
+    g_candidate_state = BLE_HOGP_CANDIDATE_CONNECTING_HIDS;
+    g_candidate_hids_cid = 0u;
+    const uint8_t status = hids_client_connect(
+        g_candidate_connection_handle,
+        &handle_candidate_gatt_event,
+        HID_PROTOCOL_MODE_REPORT,
+        &g_candidate_hids_cid);
+    if (status != ERROR_CODE_SUCCESS) {
+        candidate_abort_locked(
+            BLU2USB_BLE_HOGP_MESSAGE_PROVISIONAL_CLEARED, true);
+    }
+}
+
 static void service_vendor_output(void)
 {
     if (!g_vendor_registered) return;
@@ -508,6 +523,137 @@ static void handle_gatt_client_event(uint8_t packet_type, uint16_t channel,
         break;
     }
     default: break;
+    }
+}
+
+static void handle_candidate_gatt_event(
+    uint8_t packet_type, uint16_t channel,
+    uint8_t *packet, uint16_t size)
+{
+    (void)packet_type;
+    (void)channel;
+    (void)size;
+
+    if (hci_event_packet_get_type(packet) != HCI_EVENT_GATTSERVICE_META)
+        return;
+
+    switch (hci_event_gattservice_meta_get_subevent_code(packet)) {
+    case GATTSERVICE_SUBEVENT_HID_SERVICE_CONNECTED: {
+        const uint8_t status =
+            gattservice_subevent_hid_service_connected_get_status(packet);
+        if (status != ERROR_CODE_SUCCESS) {
+            candidate_abort_locked(
+                BLU2USB_BLE_HOGP_MESSAGE_PROVISIONAL_CLEARED, true);
+            return;
+        }
+
+        const uint8_t *descriptor =
+            hids_client_descriptor_storage_get_descriptor_data(
+                g_candidate_hids_cid, 0u);
+        const uint16_t descriptor_len =
+            hids_client_descriptor_storage_get_descriptor_len(
+                g_candidate_hids_cid, 0u);
+        const blu2usb_hid_source_t source =
+            blu2usb_hid_source_make(BLU2USB_HID_SOURCE_MOUSE, 1u);
+
+        const bool parser_ready =
+            descriptor != NULL && descriptor_len > 0u &&
+            blu2usb_ble_hogp_parser_configure(
+                &g_candidate_parser, source,
+                descriptor, descriptor_len) &&
+            blu2usb_ble_hogp_parser_has_mouse(&g_candidate_parser);
+
+        if (!parser_ready) {
+            if (descriptor != NULL && descriptor_len > 0u)
+                reject_address(
+                    g_candidate_address, g_candidate_address_type);
+            candidate_abort_locked(
+                BLU2USB_BLE_HOGP_MESSAGE_PROVISIONAL_CLEARED, true);
+            return;
+        }
+
+        if (!blu2usb_ble_hogp_session_candidate_ready(
+                &g_session_roles, 1u, g_candidate_generation)) {
+            candidate_abort_locked(
+                BLU2USB_BLE_HOGP_MESSAGE_PROVISIONAL_CLEARED, true);
+            return;
+        }
+
+        g_candidate_state = BLE_HOGP_CANDIDATE_READY;
+        stop_candidate_timer();
+
+        (void)publish_provisional(
+            BLU2USB_BLE_HOGP_MESSAGE_PROVISIONAL_READY,
+            g_candidate_generation,
+            g_candidate_address_type,
+            g_candidate_address);
+        break;
+    }
+
+    case GATTSERVICE_SUBEVENT_HID_SERVICE_DISCONNECTED:
+        if (g_candidate_state == BLE_HOGP_CANDIDATE_PROMOTED) {
+            if (g_candidate_connection_handle != HCI_CON_HANDLE_INVALID)
+                gap_disconnect(g_candidate_connection_handle);
+        } else if (g_candidate_state != BLE_HOGP_CANDIDATE_DISCONNECTING) {
+            candidate_abort_locked(
+                BLU2USB_BLE_HOGP_MESSAGE_PROVISIONAL_CLEARED, true);
+        }
+        break;
+
+    case GATTSERVICE_SUBEVENT_HID_REPORT: {
+        if (g_candidate_state != BLE_HOGP_CANDIDATE_PROMOTED ||
+            !blu2usb_ble_hogp_session_can_forward(
+                &g_session_roles, 1u))
+            break;
+
+        const uint8_t report_id =
+            gattservice_subevent_hid_report_get_report_id(packet);
+        const uint8_t *raw =
+            gattservice_subevent_hid_report_get_report(packet);
+        const uint16_t raw_len =
+            gattservice_subevent_hid_report_get_report_len(packet);
+
+        const uint8_t *payload = NULL;
+        size_t payload_len = 0u;
+        if (!blu2usb_ble_hogp_parser_normalize_report(
+                &g_candidate_parser, report_id,
+                raw, raw_len, &payload, &payload_len)) {
+            gap_disconnect(g_candidate_connection_handle);
+            break;
+        }
+
+        const blu2usb_hid_source_t source =
+            blu2usb_hid_source_make(BLU2USB_HID_SOURCE_MOUSE, 1u);
+        bool consumed = false;
+
+        if (g_vendor_registered)
+            consumed = g_vendor_backend.input(
+                g_vendor_backend.context,
+                source,
+                report_id,
+                payload,
+                payload_len,
+                publish_runtime_mouse_event,
+                NULL);
+
+        if (!consumed &&
+            !blu2usb_ble_hogp_parser_parse_report(
+                &g_candidate_parser,
+                report_id,
+                payload,
+                payload_len,
+                publish_mouse_event,
+                NULL)) {
+            gap_disconnect(g_candidate_connection_handle);
+            break;
+        }
+
+        service_vendor_output();
+        break;
+    }
+
+    default:
+        break;
     }
 }
 
