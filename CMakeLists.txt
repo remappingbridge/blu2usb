@@ -67,8 +67,15 @@ add_library(blu2usb_connection_coordinator STATIC
 target_include_directories(blu2usb_connection_coordinator PUBLIC include)
 target_link_libraries(blu2usb_connection_coordinator PUBLIC blu2usb_device_registry)
 
-add_library(blu2usb_storage STATIC src/storage/storage.c)
+add_library(blu2usb_storage STATIC
+    src/storage/storage.c
+    src/storage/product_state.c
+)
 target_include_directories(blu2usb_storage PUBLIC include)
+target_link_libraries(blu2usb_storage PUBLIC
+    blu2usb_device_registry
+    blu2usb_profiles
+)
 
 add_library(blu2usb_interaction STATIC src/interaction/interaction.c)
 target_include_directories(blu2usb_interaction PUBLIC include)
