@@ -48,6 +48,13 @@ typedef enum {
     /* v0.6.1 startup UX: appended to preserve all v0.6 screen IDs. */
     BLU2USB_SCREEN_SEARCHING_FIRST_MOUSE,
     BLU2USB_SCREEN_FIRST_MOUSE_CONNECTED,
+    /* v0.6.2 HOME state UX: appended to preserve v0.6/v0.6.1 IDs. */
+    BLU2USB_SCREEN_HOME_SEARCHING,
+    BLU2USB_SCREEN_HOME_SEARCHING_HELP,
+    BLU2USB_SCREEN_HOME_RETRY,
+    BLU2USB_SCREEN_HOME_RETRY_HELP,
+    BLU2USB_SCREEN_HOME_CONNECTED,
+    BLU2USB_SCREEN_HOME_CONNECTED_HELP,
     BLU2USB_SCREEN_COUNT
 } blu2usb_screen_id_t;
 
@@ -62,7 +69,9 @@ typedef enum {
     BLU2USB_UX_COMMAND_APPLY_ESCAPE,
     BLU2USB_UX_COMMAND_APPLY_CUSTOM,
     BLU2USB_UX_COMMAND_CUSTOM_SET_TARGET,
-    BLU2USB_UX_COMMAND_REMOVE_DEVICE
+    BLU2USB_UX_COMMAND_REMOVE_DEVICE,
+    BLU2USB_UX_COMMAND_RETRY_SAVED_SEARCH,
+    BLU2USB_UX_COMMAND_CANCEL_SAVED_SEARCH
 } blu2usb_ux_command_kind_t;
 
 typedef struct {
@@ -88,6 +97,9 @@ typedef struct {
     blu2usb_mouse_profile_kind_t active_profile;
     bool custom_dirty;
     bool first_start_complete;
+    bool home_v062_enabled;
+    bool has_saved_mouse;
+    bool saved_search_failed;
     blu2usb_mouse_source_t custom_source;
     blu2usb_mouse_target_t custom_targets[BLU2USB_MOUSE_SOURCE_COUNT];
 } blu2usb_ux_model_t;
@@ -106,6 +118,9 @@ bool blu2usb_ux_mouse_connected(void);
 void blu2usb_ux_begin_first_start(blu2usb_ux_model_t *ux);
 void blu2usb_ux_first_mouse_connected(blu2usb_ux_model_t *ux);
 void blu2usb_ux_first_mouse_disconnected(blu2usb_ux_model_t *ux);
+void blu2usb_ux_home_mouse_connected(blu2usb_ux_model_t *ux);
+void blu2usb_ux_home_mouse_disconnected(blu2usb_ux_model_t *ux);
+void blu2usb_ux_home_saved_search_timeout(blu2usb_ux_model_t *ux);
 const blu2usb_screen_template_t *blu2usb_ux_screen_template(blu2usb_screen_id_t screen);
 unsigned blu2usb_ux_option_count(const blu2usb_ux_model_t *ux);
 uint16_t blu2usb_ux_learn_white_span_mask(const blu2usb_ux_model_t *ux);
