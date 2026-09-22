@@ -150,6 +150,10 @@ bool blu2usb_connection_coordinator_start_search(
          blu2usb_device_registry_authoritative(coordinator->registry) != NULL))
         return false;
 
+    if (purpose == BLU2USB_SEARCH_NEW &&
+        blu2usb_device_registry_count(coordinator->registry) == 0u)
+        return false;
+
     const uint64_t token = next_token(coordinator);
     const uint64_t duration = search_duration_ms(purpose);
 
@@ -264,7 +268,10 @@ blu2usb_candidate_result_t blu2usb_connection_coordinator_candidate_ready(
         return BLU2USB_CANDIDATE_ACCEPTED;
 
     case BLU2USB_SEARCH_NEW:
-        if (saved || !copy_candidate_name(coordinator->candidate_name, name))
+        if (saved ||
+            blu2usb_device_registry_count(coordinator->registry) >=
+                BLU2USB_SAVED_MOUSE_CAPACITY ||
+            !copy_candidate_name(coordinator->candidate_name, name))
             return BLU2USB_CANDIDATE_REJECTED;
 
         coordinator->candidate_id = id;
