@@ -5,9 +5,10 @@ Base branch lineage: accepted G06 `7eee024ad4ee726c5a85ffa2f32b9f47187878af`.
 The abandoned `experimental/g06-mouse-ux-v1` branch is out of scope.
 
 ```markdown
-- [ ] MUX-00 Freeze migration contract and exact mouse-ui v1.0 source commit
-- [ ] MUX-00 Map all 30 screen IDs and visible terminology
-- [ ] MUX-00 Confirm no mouse-ui/mouse-core/UI-Core implementation dependency
+- [x] MUX-00 Freeze migration contract and exact mouse-ui v1.0 source commit
+- [x] MUX-00 Map all 30 screen IDs and visible terminology
+- [x] MUX-00 Confirm no mouse-ui/mouse-core/UI-Core implementation dependency
+- [ ] MUX-00 HUMAN ACCEPTANCE
 
 - [ ] MUX-01 Implement host-pure device_registry
 - [ ] MUX-01 Prove max 16 records, stable identity and connected-first presentation
