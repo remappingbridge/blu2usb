@@ -1,6 +1,6 @@
 # MUX-04 validation — durable Mouse registry/product storage
 
-Status: **IMPLEMENTED — HUMAN ACCEPTANCE PENDING**
+Status: **ACCEPTED**
 
 Branch: `gate/mux-04-durable-registry-storage`
 
@@ -289,3 +289,6 @@ The first mandatory physical gate remains **MUX-05**.
 MUX-04 requires human acceptance before MUX-05 branches from its exact accepted SHA.
 
 MUX-05 is the isolated physical Pair New transport-feasibility gate. It is the first gate where the user must flash a MUX artifact and perform mandatory hardware scenarios.
+
+
+Human acceptance recorded on 2026-09-22. MUX-05 must branch from this accepted head.
