@@ -80,3 +80,15 @@ add_test(
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_mux01_architecture.py
             ${PROJECT_SOURCE_DIR}
 )
+
+add_executable(blu2usb_test_mux02_connection_coordinator test_mux02_connection_coordinator.c)
+target_link_libraries(blu2usb_test_mux02_connection_coordinator PRIVATE
+    blu2usb_connection_coordinator
+)
+add_test(NAME mux02_connection_coordinator COMMAND blu2usb_test_mux02_connection_coordinator)
+
+add_test(
+    NAME mux02_architecture
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_mux02_architecture.py
+            ${PROJECT_SOURCE_DIR}
+)
