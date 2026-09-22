@@ -57,6 +57,10 @@ bool blu2usb_ble_hogp_session_begin_commit(
     uint32_t generation,
     uint8_t *retiring_slot_out);
 
+bool blu2usb_ble_hogp_session_abort_commit(
+    blu2usb_ble_hogp_session_roles_t *roles,
+    uint32_t generation);
+
 bool blu2usb_ble_hogp_session_retired(
     blu2usb_ble_hogp_session_roles_t *roles,
     uint8_t slot,
