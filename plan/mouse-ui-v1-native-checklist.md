@@ -32,8 +32,8 @@ The abandoned `experimental/g06-mouse-ux-v1` branch is out of scope.
 - [x] MUX-04 Validate corruption fallback and migration/default policy
 - [x] MUX-04 HUMAN ACCEPTANCE
 
-- [ ] MUX-05 Extend BLE only for authoritative + provisional candidate lifecycle
-- [ ] MUX-05 Host-test cancel/late/timeout/handoff transport lifecycle
+- [x] MUX-05 Extend BLE only for authoritative + provisional candidate lifecycle
+- [x] MUX-05 Host-test cancel/late/timeout/handoff transport lifecycle
 - [ ] MUX-05 PHYSICAL: current Mouse remains usable during NEW discovery/qualification
 - [ ] MUX-05 PHYSICAL: cancel preserves current Mouse
 - [ ] MUX-05 PHYSICAL: controlled handoff promotes only one authoritative Mouse
