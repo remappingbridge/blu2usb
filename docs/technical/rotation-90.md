@@ -1,5 +1,9 @@
 # Rotação fixa de movimento — experimental G06
 
+> A variante atual adiciona ganho horizontal 2×. As regras e evidências abaixo
+> documentam a base 1×; consulte [rotation-90-horizontal-2x.md](rotation-90-horizontal-2x.md)
+> para a transformação e o consumo USB vigentes nesta branch.
+
 ## Base e comportamento
 
 Branch: `experimental/g06-rotation-90`.

@@ -43,10 +43,10 @@ static void service_usb_mouse(blu2usb_hid_aggregator_t *aggregator,
     if (!relative && !buttons_changed) return;
     if (!blu2usb_usb_hid_pico_send_mouse(&report)) return;
     /* Consume only successfully sent motion, in original source coordinates.
-     * In particular USB X=-128 corresponds to source Y=+128, not -128.
+     * Horizontal chunks are even: USB X=-128 consumes source Y=+64.
      */
     (void)blu2usb_hid_aggregator_consume_relative(aggregator,
-        report.y, -(int32_t)report.x, report.wheel, report.pan);
+        report.y, -(int32_t)report.x / 2, report.wheel, report.pan);
     *last_buttons = output.mouse_buttons;
     *last_valid = true;
 }

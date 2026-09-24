@@ -64,11 +64,14 @@ void blu2usb_usb_hid_build_rotated_mouse_report(
     int32_t wheel,
     int32_t pan)
 {
-    /* Rotate the full pending vector before narrowing it to the USB report.
-     * Widen before negation: -INT32_MIN is not representable in int32_t.
-     * No direction threshold, deadzone or gain: diagonals/curves remain vectors.
-     */
+    /* Fixed rotation plus horizontal gain 2: USB (X,Y) = (-2*y,x).
+     * Emit even horizontal chunks so inverse consumption is exact: +126/-128
+     * instead of clipping to +127 and losing half a source unit on division.
+     * Widen before multiplication, including for INT32_MIN. */
+    const int64_t scaled_x = -2 * (int64_t)y;
+    const int8_t usb_x = scaled_x > 126 ? 126 :
+                        scaled_x < -128 ? -128 : (int8_t)scaled_x;
     blu2usb_usb_hid_build_mouse_report(report, buttons,
-        relative_chunk(-(int64_t)y), relative_chunk(x),
+        usb_x, relative_chunk(x),
         relative_chunk(wheel), relative_chunk(pan));
 }

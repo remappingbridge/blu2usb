@@ -8,6 +8,7 @@ on:
       - "gate/**"
       - "planning/**"
       - "experimental/g06-rotation-90"
+      - "experimental/g06-rotation-90-horizontal-2x"
 
 permissions:
   contents: read
