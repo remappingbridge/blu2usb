@@ -29,30 +29,24 @@ static bool render_state(const blu2usb_display_hal_t *display,
     return blu2usb_renderer_render(display, &frame);
 }
 
-static int8_t clamp_i8(int32_t value)
-{
-    if (value > INT8_MAX) return INT8_MAX;
-    if (value < INT8_MIN) return INT8_MIN;
-    return (int8_t)value;
-}
-
 static void service_usb_mouse(blu2usb_hid_aggregator_t *aggregator,
                               uint8_t *last_buttons,
                               bool *last_valid)
 {
     blu2usb_hid_output_state_t output;
     blu2usb_hid_aggregator_snapshot(aggregator, &output);
-    const int8_t dx = clamp_i8(output.dx);
-    const int8_t dy = clamp_i8(output.dy);
-    const int8_t wheel = clamp_i8(output.wheel_vertical);
-    const int8_t pan = clamp_i8(output.wheel_horizontal);
-    const bool relative = dx != 0 || dy != 0 || wheel != 0 || pan != 0;
+    blu2usb_usb_mouse_report_t report;
+    blu2usb_usb_hid_build_rotated_mouse_report(&report, output.mouse_buttons,
+        output.dx, output.dy, output.wheel_vertical, output.wheel_horizontal);
+    const bool relative = report.x != 0 || report.y != 0 || report.wheel != 0 || report.pan != 0;
     const bool buttons_changed = !*last_valid || output.mouse_buttons != *last_buttons;
     if (!relative && !buttons_changed) return;
-    blu2usb_usb_mouse_report_t report;
-    blu2usb_usb_hid_build_mouse_report(&report, output.mouse_buttons, dx, dy, wheel, pan);
     if (!blu2usb_usb_hid_pico_send_mouse(&report)) return;
-    (void)blu2usb_hid_aggregator_consume_relative(aggregator, dx, dy, wheel, pan);
+    /* Consume only successfully sent motion, in original source coordinates.
+     * In particular USB X=-128 corresponds to source Y=+128, not -128.
+     */
+    (void)blu2usb_hid_aggregator_consume_relative(aggregator,
+        report.y, -(int32_t)report.x, report.wheel, report.pan);
     *last_buttons = output.mouse_buttons;
     *last_valid = true;
 }

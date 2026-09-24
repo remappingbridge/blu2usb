@@ -39,6 +39,11 @@ typedef struct {
 
 const blu2usb_usb_hid_identity_t *blu2usb_usb_hid_identity(void);
 void blu2usb_usb_hid_build_mouse_report(blu2usb_usb_mouse_report_t *report, uint8_t buttons, int8_t x, int8_t y, int8_t wheel, int8_t pan);
+/* Fixed rotation: USB X = -source Y, USB Y = source X. After successful
+ * transmission, consume source (report.y, -(int32_t)report.x) plus wheel/pan.
+ * Unsent/remainder motion stays in the source-coordinate accumulator.
+ */
+void blu2usb_usb_hid_build_rotated_mouse_report(blu2usb_usb_mouse_report_t *report, uint8_t buttons, int32_t x, int32_t y, int32_t wheel, int32_t pan);
 void blu2usb_usb_hid_build_keyboard_report(blu2usb_usb_keyboard_report_t *report, uint8_t modifiers, const uint8_t keycodes[BLU2USB_USB_HID_KEYCODE_COUNT]);
 
 bool blu2usb_usb_hid_pico_init(void);

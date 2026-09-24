@@ -68,3 +68,16 @@ add_test(
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_screen_contract.py
             ${PROJECT_SOURCE_DIR}
 )
+
+add_executable(blu2usb_test_rotation test_rotation.c)
+target_link_libraries(blu2usb_test_rotation PRIVATE
+    blu2usb_usb_hid blu2usb_hid_aggregator blu2usb_remap)
+add_test(NAME rotation_90_vectors_and_chunking COMMAND blu2usb_test_rotation)
+
+# Keep inherited assertions active in the Release CI build as well.
+get_property(host_test_targets DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
+foreach(test_target IN LISTS host_test_targets)
+    if(test_target MATCHES "^blu2usb_test_")
+        target_compile_options(${test_target} PRIVATE -UNDEBUG)
+    endif()
+endforeach()
